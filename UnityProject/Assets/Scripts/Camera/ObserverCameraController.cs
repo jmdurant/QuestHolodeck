@@ -8,6 +8,7 @@ public class ObserverCameraController : MonoBehaviour
         TopDown,
         BedsideLeft,
         BedsideRight,
+        UserSideTable,
         CornerFrontLeft,
         CornerFrontRight,
         PartnerEyes,
@@ -144,6 +145,7 @@ public class ObserverCameraController : MonoBehaviour
             ObserverCameraPreset.TopDown => "Top Down",
             ObserverCameraPreset.BedsideLeft => "Bedside Left",
             ObserverCameraPreset.BedsideRight => "Bedside Right",
+            ObserverCameraPreset.UserSideTable => "User Side Table",
             ObserverCameraPreset.CornerFrontLeft => "Corner Front Left",
             ObserverCameraPreset.CornerFrontRight => "Corner Front Right",
             ObserverCameraPreset.PartnerEyes => "Partner Eyes",
@@ -328,6 +330,22 @@ public class ObserverCameraController : MonoBehaviour
                 position = anchor + right * bedsideDistance + Vector3.up * bedsideHeight;
                 rotation = Quaternion.LookRotation((lookTarget - position).normalized, Vector3.up);
                 return true;
+
+            case ObserverCameraPreset.UserSideTable:
+                if (avatarDriver != null && avatarDriver.TryGetDefaultStandingAnchor(true, out var userAnchorPosition, out _))
+                {
+                    var userSideDirection = (userAnchorPosition - anchor);
+                    userSideDirection = Vector3.ProjectOnPlane(userSideDirection, Vector3.up).normalized;
+                    if (userSideDirection.sqrMagnitude < 0.001f)
+                    {
+                        userSideDirection = -right;
+                    }
+
+                    position = anchor + userSideDirection * (bedsideDistance + 0.18f) + forward * 0.45f + Vector3.up * (bedsideHeight + 0.08f);
+                    rotation = Quaternion.LookRotation((lookTarget - position).normalized, Vector3.up);
+                    return true;
+                }
+                break;
 
             case ObserverCameraPreset.CornerFrontLeft:
                 position = anchor - right * cornerDistance - forward * cornerDepth + Vector3.up * cornerHeight;
