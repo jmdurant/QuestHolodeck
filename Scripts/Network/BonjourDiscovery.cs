@@ -34,7 +34,7 @@ public class BonjourDiscovery : MonoBehaviour
 
 #if UNITY_ANDROID && !UNITY_EDITOR
     private AndroidJavaObject _nsdManager;
-    private AndroidJavaObject _discoveryListener;
+    private NsdDiscoveryProxy _discoveryListener;
 #endif
 
     void Awake()

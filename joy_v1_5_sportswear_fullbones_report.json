@@ -1,0 +1,27 @@
+{
+  "armature": "rig_joy",
+  "bone_count": 611,
+  "meshes": [
+    "adidas_pink_shoes_low",
+    "adidas_pink_shoes_low.001",
+    "adidas_pink_shoes_low.002",
+    "adidas_pink_shoes_low.003",
+    "adidas_pink_shoes_low.004",
+    "beach_volleyball_bottom",
+    "beach_volleyball_top",
+    "bike_short_low",
+    "bikini",
+    "body",
+    "eye",
+    "hair_01",
+    "hair_02",
+    "high_waist_leggings_low",
+    "longline_wirefree_padded_low",
+    "padded_workout_tanktop_low",
+    "racerback_crop_sport_low",
+    "volleyball_jersey_bottom_low",
+    "volleyball_jersey_top_low",
+    "workout_short_low"
+  ],
+  "export_deform_only": false
+}

@@ -1,0 +1,27 @@
+.vscode/
+
+# Unity local cache/state
+UnityProject/Library/
+UnityProject/Logs/
+UnityProject/UserSettings/
+UnityProject/Builds/
+UnityProject/.utmp
+
+# Unity/editor generated user settings
+UnityProject/Assets/CompositionLayers/
+UnityProject/Assets/CompositionLayers.meta
+
+# Meta Avatar runtime/sample assets are installed locally as part of setup
+UnityProject/Assets/Oculus/Avatar2/
+UnityProject/Assets/Oculus/Avatar2_SampleAssets/
+UnityProject/Assets/Oculus/Avatar2.meta
+UnityProject/Assets/Oculus/Avatar2_SampleAssets.meta
+UnityProject/Assets/Samples/
+UnityProject/Assets/Samples.meta
+
+# Local reports and diagnostics
+unity-*.log
+unity-setup-tests.xml
+ovr-project-setup.log
+ovr-project-setup-report.json
+tmp-*.dll

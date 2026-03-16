@@ -285,7 +285,7 @@ public class AIAgentController : MonoBehaviour
     {
         var saved = _currentGazeBehavior;
         _currentGazeBehavior = GazeBehavior.LookAway;
-        yield return new WaitForSeconds(Random.Range(0.8f, 1.5f));
+        yield return new WaitForSeconds(UnityEngine.Random.Range(0.8f, 1.5f));
         _currentGazeBehavior = saved;
     }
 
