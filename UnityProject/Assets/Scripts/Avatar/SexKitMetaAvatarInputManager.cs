@@ -6,9 +6,41 @@ public class SexKitMetaAvatarInputManager : OvrAvatarInputManager
 {
     [SerializeField] private OVRCameraRig cameraRig;
 
+    // iPhone skeleton data supplements Quest tracking for body below headset
+    private SkeletonData _bodySkeletonData;
+    public SkeletonData BodySkeleton => _bodySkeletonData;
+
     public void SetCameraRig(OVRCameraRig rig)
     {
         cameraRig = rig;
+    }
+
+    /// Apply iPhone camera skeleton data to supplement Meta Avatar body tracking.
+    /// Quest tracks head + hands natively. iPhone provides torso, legs, feet.
+    /// When tier 1 (ARKit 91 joints), includes full spine, fingers, face points.
+    public void ApplyBodySkeleton(SkeletonData skeleton)
+    {
+        _bodySkeletonData = skeleton;
+
+        // TODO: Feed skeleton data into Meta Avatar body override system.
+        // Meta Avatars SDK supports body tracking override via:
+        //   1. OvrAvatarBodyTrackingBehavior with custom provider
+        //   2. ApplyStreamData() for full avatar pose override
+        //   3. Joint override API for specific bones
+        //
+        // For now, store the data — it's available via BodySkeleton property
+        // for other systems (debug overlay, analytics, etc.)
+        //
+        // The iPhone skeleton is most valuable for:
+        //   - Torso orientation (spine1-7) — Quest can't see below the neck
+        //   - Leg positions (knees, ankles, feet) — user's real leg pose
+        //   - Body orientation — lying down, sitting, standing
+        //   - Finger detail from ARKit (supplements Quest hand tracking)
+
+        if (skeleton.jointCount > 16)
+        {
+            Debug.Log($"[MetaAvatar] Received Tier {skeleton.tier} skeleton: {skeleton.jointCount} joints");
+        }
     }
 
     protected override void OnTrackingInitialized()

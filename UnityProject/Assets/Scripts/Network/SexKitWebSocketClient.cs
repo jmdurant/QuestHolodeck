@@ -232,7 +232,10 @@ public class SexKitWebSocketClient : MonoBehaviour
 
     private static bool LooksLikeControlFrame(string json)
     {
-        return json.Contains("\"commandType\"")
+        // Check for ControlFrame-specific nested objects sent by iPhone MCP
+        return json.Contains("\"type\":\"control\"")
+               || json.Contains("\"type\": \"control\"")
+               || json.Contains("\"commandType\"")
                || json.Contains("\"poseIntent\"")
                || json.Contains("\"facePreset\"")
                || json.Contains("\"speechText\"")

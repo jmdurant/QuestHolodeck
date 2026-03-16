@@ -43,25 +43,36 @@ public class ControlFrame
 [Serializable]
 public class ControlMovement
 {
-    public string type;
-    public float speed;
-    public float amplitude;
-    public SerializableVector3 target;
+    public float[] targetPosition;     // [x, y, z] room coordinates
+    public string targetLocation;      // "bed", "beside_user", "foot_of_bed", "doorway"
+    public float targetRotation;       // Y-axis degrees
+    public string speed;               // "walk", "approach", "quick", "teleport"
+    public string arrivedAction;       // "stand", "sit", "lie_down", "kneel"
 }
 
 [Serializable]
 public class ControlPosture
 {
-    public string position;
+    public string state;       // standing, sitting, lying_back, lying_face_down, lying_side, kneeling, crouching
+    public string position;    // legacy alias for state
+    public string facing;      // user_head, user_body, away, forward
+    public float lean;         // 0-1
+    public float openness;     // 0-1
     public float blendTime;
+
+    public string ResolvedState => !string.IsNullOrWhiteSpace(state) ? state : position;
 }
 
 [Serializable]
 public class ControlGesture
 {
-    public string name;
-    public float intensity;
+    public string type;        // reach, wave, beckon, touch_face, etc.
+    public string name;        // legacy alias for type
+    public string target;      // user_hand, user_face, user_shoulder
+    public float intensity;    // 0-1
     public float blendTime;
+
+    public string ResolvedType => !string.IsNullOrWhiteSpace(type) ? type : name;
 }
 
 [Serializable]
@@ -121,7 +132,12 @@ public class ControlExpression
 [Serializable]
 public class ControlEnvironment
 {
-    public string state;
+    public string lightScene;       // HomeKit scene name
+    public float lightBrightness;   // 0-1
+    public string lightColor;       // warm_candle, red, purple, blue, pink
+    public string musicAction;      // play, pause, skip, set_playlist
+    public string musicPlaylist;
+    public float musicVolume;       // 0-1
 }
 
 [Serializable]

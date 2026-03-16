@@ -4,24 +4,41 @@ using UnityEngine;
 
 public class MetaAvatarBridge : MonoBehaviour
 {
+    [Header("Avatar Mode")]
+    public AvatarSourceMode avatarMode = AvatarSourceMode.MetaAvatar;
+
+    public enum AvatarSourceMode
+    {
+        MetaAvatar,    // User = Meta Avatar, Partner = JOY (production)
+        DualHumanoid,  // User = JOY A, Partner = JOY B (dev/wiring)
+        PrimitiveOnly  // User = spheres, Partner = spheres (debug)
+    }
+
     [Header("Meta Avatar")]
-    public bool useMetaAvatars = true;
     public bool hidePrimitiveLocalBody = true;
     public OVRCameraRig cameraRig;
     public OvrAvatarManager avatarManager;
     public SexKitMetaAvatarInputManager avatarInputManager;
     public SampleAvatarEntity avatarA;
 
-    [Header("Humanoid Fallback")]
-    public Animator humanoidAnimatorA;
-    public Animator humanoidAnimatorB;
+    [Header("Humanoid (JOY-on-JOY or fallback)")]
+    public Animator humanoidAnimatorA;   // User body — assign second JOY instance
+    public Animator humanoidAnimatorB;   // Partner body — assign JOY partner instance
+
+    // Backward compat
+    public bool useMetaAvatars
+    {
+        get => avatarMode == AvatarSourceMode.MetaAvatar;
+        set => avatarMode = value ? AvatarSourceMode.MetaAvatar : AvatarSourceMode.DualHumanoid;
+    }
 
     [Header("Quest Tracking Merge")]
     public QuestTrackingMerge questTracking;
 
     private SexKitAvatarDriver _avatarDriver;
 
-    private static readonly Dictionary<string, HumanBodyBones> HumanoidMapping = new()
+    // Core 16 joints — always available
+    private static readonly Dictionary<string, HumanBodyBones> CoreMapping = new()
     {
         {"head", HumanBodyBones.Head},
         {"neck", HumanBodyBones.Neck},
@@ -40,6 +57,71 @@ public class MetaAvatarBridge : MonoBehaviour
         {"leftAnkle", HumanBodyBones.LeftFoot},
         {"rightAnkle", HumanBodyBones.RightFoot},
     };
+
+    // Extended joints — available at Tier 1 (ARKit 91 joints)
+    private static readonly Dictionary<string, HumanBodyBones> ExtendedMapping = new()
+    {
+        // Full spine chain
+        {"spine1", HumanBodyBones.UpperChest},
+        {"spine2", HumanBodyBones.Chest},
+        {"spine3", HumanBodyBones.Spine},
+        {"spine7", HumanBodyBones.Hips},
+
+        // Upper/lower arms (more precise than shoulder→elbow)
+        {"leftUpperArm", HumanBodyBones.LeftUpperArm},
+        {"rightUpperArm", HumanBodyBones.RightUpperArm},
+        {"leftForearm", HumanBodyBones.LeftLowerArm},
+        {"rightForearm", HumanBodyBones.RightLowerArm},
+
+        // Upper/lower legs
+        {"leftUpperLeg", HumanBodyBones.LeftUpperLeg},
+        {"rightUpperLeg", HumanBodyBones.RightUpperLeg},
+        {"leftLowerLeg", HumanBodyBones.LeftLowerLeg},
+        {"rightLowerLeg", HumanBodyBones.RightLowerLeg},
+
+        // Feet and toes
+        {"leftFoot", HumanBodyBones.LeftFoot},
+        {"rightFoot", HumanBodyBones.RightFoot},
+        {"leftToes", HumanBodyBones.LeftToes},
+        {"rightToes", HumanBodyBones.RightToes},
+
+        // Left hand fingers (from ARKit, supplements Quest hand tracking)
+        {"leftHandThumb1", HumanBodyBones.LeftThumbProximal},
+        {"leftHandThumb2", HumanBodyBones.LeftThumbIntermediate},
+        {"leftHandThumb3", HumanBodyBones.LeftThumbDistal},
+        {"leftHandIndex1", HumanBodyBones.LeftIndexProximal},
+        {"leftHandIndex2", HumanBodyBones.LeftIndexIntermediate},
+        {"leftHandIndex3", HumanBodyBones.LeftIndexDistal},
+        {"leftHandMiddle1", HumanBodyBones.LeftMiddleProximal},
+        {"leftHandMiddle2", HumanBodyBones.LeftMiddleIntermediate},
+        {"leftHandMiddle3", HumanBodyBones.LeftMiddleDistal},
+        {"leftHandRing1", HumanBodyBones.LeftRingProximal},
+        {"leftHandRing2", HumanBodyBones.LeftRingIntermediate},
+        {"leftHandRing3", HumanBodyBones.LeftRingDistal},
+        {"leftHandPinky1", HumanBodyBones.LeftLittleProximal},
+        {"leftHandPinky2", HumanBodyBones.LeftLittleIntermediate},
+        {"leftHandPinky3", HumanBodyBones.LeftLittleDistal},
+
+        // Right hand fingers
+        {"rightHandThumb1", HumanBodyBones.RightThumbProximal},
+        {"rightHandThumb2", HumanBodyBones.RightThumbIntermediate},
+        {"rightHandThumb3", HumanBodyBones.RightThumbDistal},
+        {"rightHandIndex1", HumanBodyBones.RightIndexProximal},
+        {"rightHandIndex2", HumanBodyBones.RightIndexIntermediate},
+        {"rightHandIndex3", HumanBodyBones.RightIndexDistal},
+        {"rightHandMiddle1", HumanBodyBones.RightMiddleProximal},
+        {"rightHandMiddle2", HumanBodyBones.RightMiddleIntermediate},
+        {"rightHandMiddle3", HumanBodyBones.RightMiddleDistal},
+        {"rightHandRing1", HumanBodyBones.RightRingProximal},
+        {"rightHandRing2", HumanBodyBones.RightRingIntermediate},
+        {"rightHandRing3", HumanBodyBones.RightRingDistal},
+        {"rightHandPinky1", HumanBodyBones.RightLittleProximal},
+        {"rightHandPinky2", HumanBodyBones.RightLittleIntermediate},
+        {"rightHandPinky3", HumanBodyBones.RightLittleDistal},
+    };
+
+    // Combined for backward compat
+    private static readonly Dictionary<string, HumanBodyBones> HumanoidMapping = CoreMapping;
 
     private static readonly Dictionary<string, HumanBodyBones> LeftFingerMapping = new()
     {
@@ -86,8 +168,27 @@ public class MetaAvatarBridge : MonoBehaviour
         if (SexKitWebSocketClient.Instance != null)
             SexKitWebSocketClient.Instance.OnFrameReceived += OnFrame;
 
-        if (useMetaAvatars)
-            InitializeLocalMetaAvatar();
+        switch (avatarMode)
+        {
+            case AvatarSourceMode.MetaAvatar:
+                InitializeLocalMetaAvatar();
+                break;
+
+            case AvatarSourceMode.DualHumanoid:
+                // JOY-on-JOY: both bodies driven by Humanoid animators
+                // User (A) = iPhone 91-joint skeleton + Quest head/hands
+                // Partner (B) = ControlFrame pipeline via PartnerDirector
+                // Hide primitives since we have real models
+                if (hidePrimitiveLocalBody && _avatarDriver != null)
+                    _avatarDriver.SetPrimitiveVisibility(false, false);
+                Debug.Log("[MetaAvatarBridge] Dual Humanoid mode — JOY-on-JOY");
+                break;
+
+            case AvatarSourceMode.PrimitiveOnly:
+                // Debug mode — just spheres and bones
+                Debug.Log("[MetaAvatarBridge] Primitive only mode");
+                break;
+        }
     }
 
     private void InitializeLocalMetaAvatar()
@@ -148,20 +249,36 @@ public class MetaAvatarBridge : MonoBehaviour
 
     void OnFrame(LiveFrame frame)
     {
-        if (useMetaAvatars)
+        switch (avatarMode)
         {
-            ApplyPartnerFallback(frame);
-            return;
+            case AvatarSourceMode.MetaAvatar:
+                // User = Meta Avatar (Quest tracking + iPhone skeleton supplement)
+                // Partner = JOY via PartnerDirector (NOT skeleton-driven)
+                if (frame.skeletonA != null && avatarInputManager != null)
+                    avatarInputManager.ApplyBodySkeleton(frame.skeletonA);
+                break;
+
+            case AvatarSourceMode.DualHumanoid:
+                // User = JOY A (iPhone 91-joint skeleton + Quest head/hands)
+                // Partner = JOY B (skeleton if available, PartnerDirector handles ControlFrames)
+                if (frame.skeletonA != null && humanoidAnimatorA != null)
+                {
+                    ApplySkeletonToAnimator(frame.skeletonA, humanoidAnimatorA);
+                    if (questTracking != null)
+                    {
+                        ApplyQuestHead(humanoidAnimatorA);
+                        ApplyQuestHands(humanoidAnimatorA);
+                    }
+                }
+                // Partner body skeleton (if real partner data, not agent-controlled)
+                if (frame.skeletonB != null && humanoidAnimatorB != null && !frame.partnerIsInferred)
+                    ApplySkeletonToAnimator(frame.skeletonB, humanoidAnimatorB);
+                break;
+
+            case AvatarSourceMode.PrimitiveOnly:
+                // Handled by SexKitAvatarDriver directly
+                break;
         }
-
-        if (humanoidAnimatorA != null || humanoidAnimatorB != null)
-            ApplyToHumanoid(frame);
-    }
-
-    private void ApplyPartnerFallback(LiveFrame frame)
-    {
-        if (frame.skeletonB != null && humanoidAnimatorB != null)
-            ApplySkeletonToAnimator(frame.skeletonB, humanoidAnimatorB);
     }
 
     private void ApplyToHumanoid(LiveFrame frame)
@@ -182,12 +299,24 @@ public class MetaAvatarBridge : MonoBehaviour
 
     private void ApplySkeletonToAnimator(SkeletonData skeleton, Animator animator)
     {
-        foreach (var mapping in HumanoidMapping)
+        // Always apply core 16 joints
+        ApplyMapping(skeleton, animator, CoreMapping);
+
+        // Apply extended joints when ARKit data is available (Tier 1, 91 joints)
+        if (skeleton.tier <= 1 && skeleton.jointCount > 16)
         {
-            Vector3 pos = skeleton.GetJoint(mapping.Key);
+            ApplyMapping(skeleton, animator, ExtendedMapping);
+        }
+    }
+
+    private void ApplyMapping(SkeletonData skeleton, Animator animator, Dictionary<string, HumanBodyBones> mapping)
+    {
+        foreach (var entry in mapping)
+        {
+            Vector3 pos = skeleton.GetJoint(entry.Key);
             if (pos == Vector3.zero) continue;
 
-            Transform bone = animator.GetBoneTransform(mapping.Value);
+            Transform bone = animator.GetBoneTransform(entry.Value);
             if (bone != null)
                 bone.position = Vector3.Lerp(bone.position, pos, Time.deltaTime * 4f);
         }

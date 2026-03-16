@@ -41,14 +41,49 @@ public class SexKitAvatarDriver : MonoBehaviour
         MetaAvatar      // Meta Avatars SDK with ApplyStreamData
     }
 
-    // Bone connections (matches SexKit's BoneConnection.all)
-    private static readonly (string, string)[] Bones = {
+    // Core bone connections (15 bones — always rendered)
+    private static readonly (string, string)[] CoreBones = {
         ("head", "neck"), ("neck", "spine"), ("spine", "hip"),
         ("neck", "leftShoulder"), ("leftShoulder", "leftElbow"), ("leftElbow", "leftWrist"),
         ("neck", "rightShoulder"), ("rightShoulder", "rightElbow"), ("rightElbow", "rightWrist"),
         ("hip", "leftHip"), ("leftHip", "leftKnee"), ("leftKnee", "leftAnkle"),
         ("hip", "rightHip"), ("rightHip", "rightKnee"), ("rightKnee", "rightAnkle"),
     };
+
+    // Extended bone connections (added when ARKit 91-joint data is available)
+    private static readonly (string, string)[] ExtendedBones = {
+        // Full spine chain
+        ("neck", "spine1"), ("spine1", "spine2"), ("spine2", "spine3"),
+        ("spine3", "spine4"), ("spine4", "spine5"), ("spine5", "spine6"), ("spine6", "spine7"),
+        // Upper/lower arm segments
+        ("leftShoulder", "leftUpperArm"), ("leftUpperArm", "leftElbow"),
+        ("leftElbow", "leftForearm"), ("leftForearm", "leftWrist"),
+        ("rightShoulder", "rightUpperArm"), ("rightUpperArm", "rightElbow"),
+        ("rightElbow", "rightForearm"), ("rightForearm", "rightWrist"),
+        // Upper/lower leg segments
+        ("leftHip", "leftUpperLeg"), ("leftUpperLeg", "leftKnee"),
+        ("leftKnee", "leftLowerLeg"), ("leftLowerLeg", "leftAnkle"),
+        ("rightHip", "rightUpperLeg"), ("rightUpperLeg", "rightKnee"),
+        ("rightKnee", "rightLowerLeg"), ("rightLowerLeg", "rightAnkle"),
+        // Feet
+        ("leftAnkle", "leftFoot"), ("leftFoot", "leftToes"),
+        ("rightAnkle", "rightFoot"), ("rightFoot", "rightToes"),
+        // Face
+        ("head", "nose"), ("head", "jaw"),
+        ("head", "leftEye"), ("head", "rightEye"),
+        ("head", "leftEar"), ("head", "rightEar"),
+        // Left hand (index + thumb only for visual clarity)
+        ("leftWrist", "leftHandThumb1"), ("leftHandThumb1", "leftHandThumb2"), ("leftHandThumb2", "leftHandThumb3"),
+        ("leftWrist", "leftHandIndex1"), ("leftHandIndex1", "leftHandIndex2"), ("leftHandIndex2", "leftHandIndex3"),
+        ("leftWrist", "leftHandMiddle1"), ("leftHandMiddle1", "leftHandMiddle2"), ("leftHandMiddle2", "leftHandMiddle3"),
+        // Right hand
+        ("rightWrist", "rightHandThumb1"), ("rightHandThumb1", "rightHandThumb2"), ("rightHandThumb2", "rightHandThumb3"),
+        ("rightWrist", "rightHandIndex1"), ("rightHandIndex1", "rightHandIndex2"), ("rightHandIndex2", "rightHandIndex3"),
+        ("rightWrist", "rightHandMiddle1"), ("rightHandMiddle1", "rightHandMiddle2"), ("rightHandMiddle2", "rightHandMiddle3"),
+    };
+
+    // Combined — used for primitive rendering
+    private static (string, string)[] Bones => CoreBones;
 
     void Start()
     {
@@ -66,7 +101,8 @@ public class SexKitAvatarDriver : MonoBehaviour
         // Smooth interpolation toward targets
         float t = Time.deltaTime * interpolationSpeed;
 
-        foreach (var joint in SkeletonData.JointNames)
+        // Iterate all joints that have target data (handles both 16 and 91 joint tiers)
+        foreach (var joint in SkeletonData.AllJointNames)
         {
             if (_targetA.ContainsKey(joint))
             {
@@ -109,9 +145,14 @@ public class SexKitAvatarDriver : MonoBehaviour
     private void OnFrame(LiveFrame frame)
     {
         // Update targets from skeleton data
+        // Use AllJointNames when ARKit tier (91 joints), CoreJointNames for lower tiers
         if (frame.skeletonA != null)
         {
-            foreach (var joint in SkeletonData.JointNames)
+            var jointNames = (frame.skeletonA.tier <= 1 && frame.skeletonA.jointCount > 16)
+                ? SkeletonData.AllJointNames
+                : SkeletonData.CoreJointNames;
+
+            foreach (var joint in jointNames)
             {
                 Vector3 pos = frame.skeletonA.GetJoint(joint);
                 if (pos != Vector3.zero) _targetA[joint] = pos;
@@ -120,7 +161,11 @@ public class SexKitAvatarDriver : MonoBehaviour
 
         if (frame.skeletonB != null)
         {
-            foreach (var joint in SkeletonData.JointNames)
+            var jointNames = (frame.skeletonB.tier <= 1 && frame.skeletonB.jointCount > 16)
+                ? SkeletonData.AllJointNames
+                : SkeletonData.CoreJointNames;
+
+            foreach (var joint in jointNames)
             {
                 Vector3 pos = frame.skeletonB.GetJoint(joint);
                 if (pos != Vector3.zero) _targetB[joint] = pos;

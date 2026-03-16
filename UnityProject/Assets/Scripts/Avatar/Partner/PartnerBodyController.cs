@@ -63,22 +63,65 @@ public class PartnerBodyController : MonoBehaviour, IPartnerBodyController
             return;
         }
 
-        var lowered = gestureName.ToLowerInvariant();
-        if (lowered.Contains("left"))
+        switch (gestureName.ToLowerInvariant())
         {
-            SetPoseIntent(PartnerPoseIntent.ReachLeft, blendTime);
-        }
-        else if (lowered.Contains("right"))
-        {
-            SetPoseIntent(PartnerPoseIntent.ReachRight, blendTime);
-        }
-        else if (lowered.Contains("comfort"))
-        {
-            SetPoseIntent(PartnerPoseIntent.Comforting, blendTime);
-        }
-        else if (lowered.Contains("brace"))
-        {
-            SetPoseIntent(PartnerPoseIntent.Brace, blendTime);
+            case "reach":
+                // Reach toward user — use right hand by default
+                SetPoseIntent(PartnerPoseIntent.ReachRight, blendTime);
+                break;
+
+            case "wave":
+                // Quick wave — raise right hand briefly
+                SetPoseIntent(PartnerPoseIntent.ReachRight, blendTime);
+                break;
+
+            case "beckon":
+                // Beckoning gesture — lean in and reach
+                SetPoseIntent(PartnerPoseIntent.LeanIn, blendTime);
+                break;
+
+            case "touch_face":
+                // Reach toward user's face
+                SetPoseIntent(PartnerPoseIntent.ReachRight, blendTime);
+                if (lookTarget.HasValue)
+                {
+                    rightHandTarget = lookTarget.Value;  // hand moves toward face
+                }
+                break;
+
+            case "hair_flip":
+                // Touch own head briefly — lean back, confident
+                SetPoseIntent(PartnerPoseIntent.LeanBack, blendTime);
+                break;
+
+            case "stretch":
+                // Open up, lean back
+                SetPoseIntent(PartnerPoseIntent.LeanBack, blendTime);
+                break;
+
+            case "nod":
+                // Subtle forward lean (head bob simulated via body)
+                SetPoseIntent(PartnerPoseIntent.LeanIn, Mathf.Min(blendTime, 0.15f));
+                break;
+
+            case "shake_head":
+                // Slight body shift side to side
+                SetPoseIntent(PartnerPoseIntent.Idle, blendTime);
+                break;
+
+            case "shrug":
+                // Brief shoulder raise via lean back
+                SetPoseIntent(PartnerPoseIntent.LeanBack, Mathf.Min(blendTime, 0.2f));
+                break;
+
+            default:
+                // Fallback to directional keywords
+                var lowered = gestureName.ToLowerInvariant();
+                if (lowered.Contains("left")) SetPoseIntent(PartnerPoseIntent.ReachLeft, blendTime);
+                else if (lowered.Contains("right")) SetPoseIntent(PartnerPoseIntent.ReachRight, blendTime);
+                else if (lowered.Contains("comfort")) SetPoseIntent(PartnerPoseIntent.Comforting, blendTime);
+                else if (lowered.Contains("brace")) SetPoseIntent(PartnerPoseIntent.Brace, blendTime);
+                break;
         }
     }
 
