@@ -15,6 +15,8 @@ public class ConnectionUI : MonoBehaviour
     public Button connectButton;
     public Button disconnectButton;
     public Button scanButton;
+    public Button exitButton;
+    public Button connectedExitButton;
     public TextMeshProUGUI statusText;
     public TextMeshProUGUI frameCountText;
     public TextMeshProUGUI dataPreviewText;
@@ -29,6 +31,8 @@ public class ConnectionUI : MonoBehaviour
         connectButton?.onClick.AddListener(OnConnect);
         disconnectButton?.onClick.AddListener(OnDisconnect);
         scanButton?.onClick.AddListener(OnScan);
+        exitButton?.onClick.AddListener(OnExit);
+        connectedExitButton?.onClick.AddListener(OnExit);
 
         SexKitWebSocketClient.Instance.OnConnected += OnConnected;
         SexKitWebSocketClient.Instance.OnDisconnected += OnDisconnected;
@@ -77,6 +81,15 @@ public class ConnectionUI : MonoBehaviour
     void OnDisconnect()
     {
         SexKitWebSocketClient.Instance.Disconnect();
+    }
+
+    void OnExit()
+    {
+        SetStatus("Exiting...");
+#if UNITY_EDITOR
+        UnityEditor.EditorApplication.isPlaying = false;
+#endif
+        Application.Quit();
     }
 
     void OnScan()

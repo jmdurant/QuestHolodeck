@@ -295,9 +295,13 @@ public static class QuestHolodeckProjectSetup
         var sexKitManager = new GameObject("SexKitManager");
         var wsClient = sexKitManager.AddComponent<SexKitWebSocketClient>();
         sexKitManager.AddComponent<UnityMainThreadDispatcher>();
+        var speechCapture = sexKitManager.AddComponent<SpeechCapture>();
         var bonjourDiscovery = sexKitManager.AddComponent<BonjourDiscovery>();
         wsClient.serverAddress = string.Empty;
         wsClient.autoReconnect = true;
+        speechCapture.wsClient = wsClient;
+        speechCapture.listenContinuously = true;
+        speechCapture.autoRequestMicrophonePermission = true;
         bonjourDiscovery.serviceType = "_sexkit-stream._tcp.";
         bonjourDiscovery.scanTimeout = 10f;
 
@@ -334,11 +338,16 @@ public static class QuestHolodeckProjectSetup
         var roomRoot = new GameObject("RoomEnvironment");
         var roomMeshLoader = roomRoot.AddComponent<RoomMeshLoader>();
         var passthroughManager = roomRoot.AddComponent<PassthroughManager>();
+        roomMeshLoader.avatarDriver = avatarDriver;
         roomMeshLoader.usePassthrough = true;
         roomMeshLoader.autoPlaceFromCalibration = true;
         passthroughManager.enablePassthrough = true;
         passthroughManager.ovrManager = ovrManager;
         passthroughManager.cameraRig = cameraRig;
+
+        var userStartStaging = cameraRig.gameObject.AddComponent<UserStartStagingController>();
+        userStartStaging.cameraRig = cameraRig;
+        userStartStaging.avatarDriver = avatarDriver;
 
         var connectionCanvas = CreateConnectionCanvas(bonjourDiscovery);
         var hudCanvas = CreateHudCanvas();
@@ -387,7 +396,7 @@ public static class QuestHolodeckProjectSetup
         observerController.partnerDirector = partnerDirector;
         observerController.observerEnabled = false;
         observerController.pipEnabled = false;
-        observerController.activePreset = ObserverCameraController.ObserverCameraPreset.BedsideLeft;
+        observerController.activePreset = ObserverCameraController.ObserverCameraPreset.UserSideTable;
 
         if (eventSystem != null)
         {
@@ -558,8 +567,10 @@ public static class QuestHolodeckProjectSetup
 
         var connectButton = CreateButton("ConnectButton", buttonRow.transform, "Connect");
         var scanButton = CreateButton("ScanButton", buttonRow.transform, "Scan Network");
+        var exitButton = CreateButton("ExitButton", buttonRow.transform, "Exit");
         SetPreferredHeight(connectButton.GetComponent<RectTransform>(), 72f);
         SetPreferredHeight(scanButton.GetComponent<RectTransform>(), 72f);
+        SetPreferredHeight(exitButton.GetComponent<RectTransform>(), 72f);
 
         var statusText = CreateText("StatusText", rootPanel.transform, "Waiting to scan...", 22, TextAlignmentOptions.Center);
         SetPreferredHeight(statusText.rectTransform, 44f);
@@ -580,14 +591,26 @@ public static class QuestHolodeckProjectSetup
         var dataPreviewText = CreateText("DataPreviewText", connectedPanel.transform, "No frame data yet", 24, TextAlignmentOptions.TopLeft);
         SetPreferredHeight(dataPreviewText.rectTransform, 180f);
         dataPreviewText.textWrappingMode = TextWrappingModes.Normal;
-        var disconnectButton = CreateButton("DisconnectButton", connectedPanel.transform, "Disconnect");
+        var connectedButtonRow = CreateUIObject("ConnectedButtonRow", connectedPanel.transform);
+        var connectedButtonRowLayout = connectedButtonRow.AddComponent<HorizontalLayoutGroup>();
+        connectedButtonRowLayout.spacing = 16f;
+        connectedButtonRowLayout.childAlignment = TextAnchor.MiddleCenter;
+        connectedButtonRowLayout.childForceExpandWidth = true;
+        connectedButtonRowLayout.childControlHeight = false;
+        SetPreferredHeight(connectedButtonRow.GetComponent<RectTransform>(), 72f);
+
+        var disconnectButton = CreateButton("DisconnectButton", connectedButtonRow.transform, "Disconnect");
+        var connectedExitButton = CreateButton("ConnectedExitButton", connectedButtonRow.transform, "Exit");
         SetPreferredHeight(disconnectButton.GetComponent<RectTransform>(), 72f);
+        SetPreferredHeight(connectedExitButton.GetComponent<RectTransform>(), 72f);
 
         var connectionUi = canvasObject.AddComponent<ConnectionUI>();
         connectionUi.addressInput = addressInput;
         connectionUi.connectButton = connectButton;
         connectionUi.disconnectButton = disconnectButton;
         connectionUi.scanButton = scanButton;
+        connectionUi.exitButton = exitButton;
+        connectionUi.connectedExitButton = connectedExitButton;
         connectionUi.statusText = statusText;
         connectionUi.frameCountText = frameCountText;
         connectionUi.dataPreviewText = dataPreviewText;

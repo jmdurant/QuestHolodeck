@@ -12,6 +12,9 @@
 
 using System;
 using UnityEngine;
+#if UNITY_ANDROID && !UNITY_EDITOR
+using UnityEngine.Android;
+#endif
 
 public class SpeechCapture : MonoBehaviour
 {
@@ -22,6 +25,7 @@ public class SpeechCapture : MonoBehaviour
     public float silenceTimeout = 2.0f;           // seconds of silence before finalizing
     public float restartDelay = 0.5f;             // seconds between listen sessions
     public string safeWord = "red";               // kill switch word — checked locally first
+    public bool autoRequestMicrophonePermission = true;
 
     [Header("Status")]
     public bool isListening = false;
@@ -52,10 +56,7 @@ public class SpeechCapture : MonoBehaviour
     void Start()
     {
         wsClient ??= SexKitWebSocketClient.Instance;
-        InitializeSpeechRecognizer();
-
-        if (listenContinuously)
-            StartListening();
+        InitializeAndStartIfPermitted();
     }
 
     // MARK: - Public API
@@ -132,6 +133,50 @@ public class SpeechCapture : MonoBehaviour
             Debug.LogError($"[SpeechCapture] Init failed: {e.Message}");
         }
 #endif
+    }
+
+    private void InitializeAndStartIfPermitted()
+    {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        if (!Permission.HasUserAuthorizedPermission(Permission.Microphone))
+        {
+            if (autoRequestMicrophonePermission)
+            {
+                var callbacks = new PermissionCallbacks();
+                callbacks.PermissionGranted += _ =>
+                {
+                    Debug.Log("[SpeechCapture] Microphone permission granted");
+                    InitializeSpeechRecognizer();
+                    if (listenContinuously)
+                    {
+                        StartListening();
+                    }
+                };
+                callbacks.PermissionDenied += _ =>
+                {
+                    Debug.LogWarning("[SpeechCapture] Microphone permission denied");
+                };
+                callbacks.PermissionDeniedAndDontAskAgain += _ =>
+                {
+                    Debug.LogWarning("[SpeechCapture] Microphone permission denied permanently");
+                };
+                Permission.RequestUserPermission(Permission.Microphone, callbacks);
+            }
+            else
+            {
+                Debug.LogWarning("[SpeechCapture] Microphone permission missing");
+            }
+
+            return;
+        }
+#endif
+
+        InitializeSpeechRecognizer();
+
+        if (listenContinuously)
+        {
+            StartListening();
+        }
     }
 
     // MARK: - Handle Results

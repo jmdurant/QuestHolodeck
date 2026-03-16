@@ -9,6 +9,9 @@ using UnityEngine;
 
 public class RoomMeshLoader : MonoBehaviour
 {
+    [Header("References")]
+    public SexKitAvatarDriver avatarDriver;
+
     [Header("Room Mesh")]
     public GameObject roomMeshPrefab;        // Pre-imported OBJ/FBX from SexKit LiDAR scan
     public Material roomMeshMaterial;         // Semi-transparent for mixed reality
@@ -24,6 +27,13 @@ public class RoomMeshLoader : MonoBehaviour
     public float bedsideTableHeight = 0.6096f;
     public float bedsideTableGap = 0.08f;
 
+    [Header("Pillows")]
+    public bool createPillows = true;
+    public Vector3 pillowSize = new Vector3(0.66f, 0.16f, 0.4f);
+    public float pillowInsetFromHead = 0.22f;
+    public float pillowSideInset = 0.16f;
+    public float pillowTiltDegrees = 24f;
+
     [Header("Placement")]
     public bool usePassthrough = true;        // Quest 3 passthrough mixed reality
     public bool autoPlaceFromCalibration = true;
@@ -32,9 +42,12 @@ public class RoomMeshLoader : MonoBehaviour
     private GameObject _bedInstance;
     private GameObject _leftBedsideTable;
     private GameObject _rightBedsideTable;
+    private GameObject _leftPillow;
+    private GameObject _rightPillow;
 
     void Start()
     {
+        avatarDriver ??= FindFirstObjectByType<SexKitAvatarDriver>();
         SexKitWebSocketClient.Instance.OnConnected += OnConnected;
         SexKitWebSocketClient.Instance.OnFrameReceived += OnFirstFrame;
     }
@@ -112,7 +125,13 @@ public class RoomMeshLoader : MonoBehaviour
             Destroy(_bedInstance.GetComponent<Collider>());
         }
 
+        if (avatarDriver != null)
+        {
+            avatarDriver.bedTransform = _bedInstance.transform;
+        }
+
         PlaceBedsideTables(width, length, mattressHeight);
+        PlacePillows(width, length, mattressHeight);
     }
 
     private void PlaceBedsideTables(float width, float length, float mattressHeight)
@@ -157,5 +176,48 @@ public class RoomMeshLoader : MonoBehaviour
 
         table.transform.localScale = new Vector3(bedsideTableTopSize.x, bedsideTableHeight, bedsideTableTopSize.y);
         table.transform.position = centerPosition;
+    }
+
+    private void PlacePillows(float width, float length, float mattressHeight)
+    {
+        if (!createPillows)
+        {
+            return;
+        }
+
+        _leftPillow ??= CreatePillow("PillowLeft");
+        _rightPillow ??= CreatePillow("PillowRight");
+
+        var bedCenter = new Vector3(0f, mattressHeight, -2f);
+        var halfWidth = width * 0.5f;
+        var halfLength = length * 0.5f;
+        var pillowCenterY = mattressHeight + pillowSize.y * 0.45f;
+        var headZ = bedCenter.z + halfLength - pillowInsetFromHead - pillowSize.z * 0.5f;
+        var leftX = bedCenter.x - (halfWidth * 0.25f + pillowSideInset);
+        var rightX = bedCenter.x + (halfWidth * 0.25f + pillowSideInset);
+
+        ConfigurePillow(_leftPillow, new Vector3(leftX, pillowCenterY, headZ));
+        ConfigurePillow(_rightPillow, new Vector3(rightX, pillowCenterY, headZ));
+    }
+
+    private GameObject CreatePillow(string objectName)
+    {
+        var pillow = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        pillow.name = objectName;
+        var mat = pillow.GetComponent<Renderer>().material;
+        mat.color = new Color(0.92f, 0.9f, 0.86f, 1f);
+        return pillow;
+    }
+
+    private void ConfigurePillow(GameObject pillow, Vector3 centerPosition)
+    {
+        if (pillow == null)
+        {
+            return;
+        }
+
+        pillow.transform.localScale = pillowSize;
+        pillow.transform.position = centerPosition;
+        pillow.transform.rotation = Quaternion.Euler(-pillowTiltDegrees, 0f, 0f);
     }
 }

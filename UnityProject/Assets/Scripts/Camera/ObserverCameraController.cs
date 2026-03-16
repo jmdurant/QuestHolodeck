@@ -26,7 +26,7 @@ public class ObserverCameraController : MonoBehaviour
     [Header("State")]
     public bool observerEnabled;
     public bool pipEnabled;
-    public ObserverCameraPreset activePreset = ObserverCameraPreset.BedsideLeft;
+    public ObserverCameraPreset activePreset = ObserverCameraPreset.UserSideTable;
 
     [Header("Observer Camera")]
     public LayerMask cullingMask = ~0;

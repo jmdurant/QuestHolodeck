@@ -29,6 +29,8 @@ public class SexKitAvatarDriver : MonoBehaviour
     public string fallbackUserSleepSide = "left";
     public float standingFloorY = 0f;
     public float partnerBedInset = 0.22f;
+    public float partnerHeadInset = 0.2f;
+    public float partnerReclineDegrees = 28f;
 
     // Joint transforms for primitive mode
     private Dictionary<string, Transform> _jointsA = new();
@@ -299,7 +301,9 @@ public class SexKitAvatarDriver : MonoBehaviour
 
         var bedCenter = bedTransform.position;
         var right = bedTransform.right.sqrMagnitude > 0.0001f ? bedTransform.right.normalized : Vector3.right;
+        var forward = bedTransform.forward.sqrMagnitude > 0.0001f ? bedTransform.forward.normalized : Vector3.forward;
         var bedWidth = bedTransform.localScale.x > 0.01f ? bedTransform.localScale.x : (frame != null && frame.bedWidth > 0f ? frame.bedWidth : 1.5f);
+        var bedLength = bedTransform.localScale.z > 0.01f ? bedTransform.localScale.z : (frame != null && frame.bedLength > 0f ? frame.bedLength : 2f);
         var sideOffset = bedWidth * 0.5f + bedSideClearance;
         var floorY = standingFloorY;
 
@@ -308,7 +312,7 @@ public class SexKitAvatarDriver : MonoBehaviour
         var partnerDirection = -userDirection;
 
         var userPosition = bedCenter + userDirection * sideOffset;
-        var partnerPosition = bedCenter + partnerDirection * (bedWidth * partnerBedInset);
+        var partnerPosition = bedCenter + partnerDirection * (bedWidth * partnerBedInset) + forward * (bedLength * 0.5f - partnerHeadInset);
         userPosition.y = floorY;
         partnerPosition.y = bedCenter.y + 0.02f;
 
@@ -316,7 +320,7 @@ public class SexKitAvatarDriver : MonoBehaviour
         partnerDefaultAnchor.position = partnerPosition;
 
         userDefaultAnchor.rotation = CreateInwardFacingRotation(userPosition, bedCenter);
-        partnerDefaultAnchor.rotation = CreateLyingRotation(bedTransform);
+        partnerDefaultAnchor.rotation = CreateReclinedRotation(bedTransform, partnerReclineDegrees);
     }
 
     private string ResolveUserSleepSide(LiveFrame frame)
@@ -351,13 +355,17 @@ public class SexKitAvatarDriver : MonoBehaviour
         return Quaternion.LookRotation(flatDirection.normalized, Vector3.up);
     }
 
-    private static Quaternion CreateLyingRotation(Transform bed)
+    private static Quaternion CreateReclinedRotation(Transform bed, float reclineDegrees)
     {
         var forward = bed != null && bed.forward.sqrMagnitude > 0.0001f
             ? bed.forward.normalized
             : Vector3.forward;
+        var right = bed != null && bed.right.sqrMagnitude > 0.0001f
+            ? bed.right.normalized
+            : Vector3.right;
 
-        return Quaternion.LookRotation(Vector3.up, -forward);
+        var lying = Quaternion.LookRotation(Vector3.up, -forward);
+        return Quaternion.AngleAxis(-reclineDegrees, right) * lying;
     }
 
     void OnDestroy()

@@ -1,5 +1,15 @@
 {
   "dependencies": {
+    "com.coplaydev.unity-mcp": {
+      "version": "https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#main",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {
+        "com.unity.nuget.newtonsoft-json": "3.0.2",
+        "com.unity.test-framework": "1.1.31"
+      },
+      "hash": "b2d95d2638063e7bb36025df64bf02a9eba8a7c8"
+    },
     "com.meta.xr.mrutilitykit": {
       "version": "85.0.0",
       "depth": 1,
@@ -149,7 +159,7 @@
     },
     "com.unity.ext.nunit": {
       "version": "2.0.5",
-      "depth": 4,
+      "depth": 2,
       "source": "builtin",
       "dependencies": {}
     },
@@ -186,7 +196,7 @@
     },
     "com.unity.nuget.newtonsoft-json": {
       "version": "3.2.2",
-      "depth": 2,
+      "depth": 1,
       "source": "registry",
       "dependencies": {},
       "url": "https://packages.unity.com"
@@ -241,7 +251,7 @@
     },
     "com.unity.test-framework": {
       "version": "1.6.0",
-      "depth": 3,
+      "depth": 1,
       "source": "builtin",
       "dependencies": {
         "com.unity.ext.nunit": "2.0.3",

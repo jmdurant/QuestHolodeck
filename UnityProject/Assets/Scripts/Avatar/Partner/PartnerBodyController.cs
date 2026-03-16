@@ -4,6 +4,7 @@ public class PartnerBodyController : MonoBehaviour, IPartnerBodyController
 {
     [Header("References")]
     public SexKitAvatarDriver avatarDriver;
+    public QuestTrackingMerge trackingMerge;
     public Transform partnerRoot;
     public Transform headBone;
     public Transform chestBone;
@@ -14,8 +15,16 @@ public class PartnerBodyController : MonoBehaviour, IPartnerBodyController
     public float positionLerpSpeed = 4f;
     public float rotationLerpSpeed = 6f;
 
+    [Header("Head Tracking")]
+    public bool followUserHeadByDefault = true;
+    public bool clampHeadTracking = true;
+    public float maxHeadYawDegrees = 70f;
+    public float maxHeadPitchUpDegrees = 28f;
+    public float maxHeadPitchDownDegrees = 38f;
+
     protected Vector3 baseRootLocalPosition;
     protected Quaternion baseRootRotation;
+    protected Quaternion baseHeadLocalRotation;
     protected Vector3 targetLocalOffset;
     protected Vector3? lookTarget;
     protected Vector3? headLookTarget;
@@ -69,56 +78,46 @@ public class PartnerBodyController : MonoBehaviour, IPartnerBodyController
         switch (gestureName.ToLowerInvariant())
         {
             case "reach":
-                // Reach toward user — use right hand by default
                 SetPoseIntent(PartnerPoseIntent.ReachRight, blendTime);
                 break;
 
             case "wave":
-                // Quick wave — raise right hand briefly
                 SetPoseIntent(PartnerPoseIntent.ReachRight, blendTime);
                 break;
 
             case "beckon":
-                // Beckoning gesture — lean in and reach
                 SetPoseIntent(PartnerPoseIntent.LeanIn, blendTime);
                 break;
 
             case "touch_face":
-                // Reach toward user's face
                 SetPoseIntent(PartnerPoseIntent.ReachRight, blendTime);
                 if (lookTarget.HasValue)
                 {
-                    rightHandTarget = lookTarget.Value;  // hand moves toward face
+                    rightHandTarget = lookTarget.Value;
                 }
                 break;
 
             case "hair_flip":
-                // Touch own head briefly — lean back, confident
                 SetPoseIntent(PartnerPoseIntent.LeanBack, blendTime);
                 break;
 
             case "stretch":
-                // Open up, lean back
                 SetPoseIntent(PartnerPoseIntent.LeanBack, blendTime);
                 break;
 
             case "nod":
-                // Subtle forward lean (head bob simulated via body)
                 SetPoseIntent(PartnerPoseIntent.LeanIn, Mathf.Min(blendTime, 0.15f));
                 break;
 
             case "shake_head":
-                // Slight body shift side to side
                 SetPoseIntent(PartnerPoseIntent.Idle, blendTime);
                 break;
 
             case "shrug":
-                // Brief shoulder raise via lean back
                 SetPoseIntent(PartnerPoseIntent.LeanBack, Mathf.Min(blendTime, 0.2f));
                 break;
 
             default:
-                // Fallback to directional keywords
                 var lowered = gestureName.ToLowerInvariant();
                 if (lowered.Contains("left")) SetPoseIntent(PartnerPoseIntent.ReachLeft, blendTime);
                 else if (lowered.Contains("right")) SetPoseIntent(PartnerPoseIntent.ReachRight, blendTime);
@@ -155,13 +154,18 @@ public class PartnerBodyController : MonoBehaviour, IPartnerBodyController
             ApplyLookTarget(partnerRoot, lookTarget.Value, deltaTime);
         }
 
-        if ((headLookTarget ?? lookTarget).HasValue && headBone != null)
+        var effectiveHeadTarget = GetEffectiveHeadLookTarget();
+        if (effectiveHeadTarget.HasValue && headBone != null)
         {
-            ApplyLookTarget(headBone, (headLookTarget ?? lookTarget).Value, deltaTime);
+            ApplyHeadLookTarget(headBone, effectiveHeadTarget.Value, deltaTime);
         }
         else if (!lookTarget.HasValue)
         {
             partnerRoot.localRotation = Quaternion.Slerp(partnerRoot.localRotation, baseRootRotation, deltaTime * rotationLerpSpeed);
+            if (headBone != null)
+            {
+                headBone.localRotation = Quaternion.Slerp(headBone.localRotation, baseHeadLocalRotation, deltaTime * rotationLerpSpeed);
+            }
         }
 
         if (leftHandTarget.HasValue && leftHandBone != null)
@@ -188,12 +192,18 @@ public class PartnerBodyController : MonoBehaviour, IPartnerBodyController
         }
 
         avatarDriver ??= GetComponent<SexKitAvatarDriver>();
+        trackingMerge ??= FindFirstObjectByType<QuestTrackingMerge>();
         ResolvePartnerRoot();
 
         if (partnerRoot != null)
         {
             baseRootLocalPosition = partnerRoot.localPosition;
             baseRootRotation = partnerRoot.localRotation;
+        }
+
+        if (headBone != null)
+        {
+            baseHeadLocalRotation = headBone.localRotation;
         }
 
         initialized = true;
@@ -222,5 +232,52 @@ public class PartnerBodyController : MonoBehaviour, IPartnerBodyController
     protected void SetHeadLookTarget(Vector3? worldTarget)
     {
         headLookTarget = worldTarget;
+    }
+
+    protected Vector3? GetEffectiveHeadLookTarget()
+    {
+        if (headLookTarget.HasValue)
+        {
+            return headLookTarget;
+        }
+
+        if (lookTarget.HasValue)
+        {
+            return lookTarget;
+        }
+
+        if (followUserHeadByDefault && trackingMerge != null && trackingMerge.HeadPosition != Vector3.zero)
+        {
+            return trackingMerge.HeadPosition;
+        }
+
+        return null;
+    }
+
+    protected void ApplyHeadLookTarget(Transform source, Vector3 target, float deltaTime)
+    {
+        if (!clampHeadTracking || source.parent == null)
+        {
+            ApplyLookTarget(source, target, deltaTime);
+            return;
+        }
+
+        var worldDirection = target - source.position;
+        if (worldDirection.sqrMagnitude < 0.0001f)
+        {
+            return;
+        }
+
+        var parentSpaceDirection = source.parent.InverseTransformDirection(worldDirection.normalized);
+        var baseSpaceDirection = Quaternion.Inverse(baseHeadLocalRotation) * parentSpaceDirection;
+        var yaw = Mathf.Atan2(baseSpaceDirection.x, baseSpaceDirection.z) * Mathf.Rad2Deg;
+        var flatDistance = Mathf.Max(0.0001f, new Vector2(baseSpaceDirection.x, baseSpaceDirection.z).magnitude);
+        var pitch = -Mathf.Atan2(baseSpaceDirection.y, flatDistance) * Mathf.Rad2Deg;
+
+        yaw = Mathf.Clamp(yaw, -maxHeadYawDegrees, maxHeadYawDegrees);
+        pitch = Mathf.Clamp(pitch, -maxHeadPitchUpDegrees, maxHeadPitchDownDegrees);
+
+        var clampedLocalRotation = baseHeadLocalRotation * Quaternion.Euler(pitch, yaw, 0f);
+        source.localRotation = Quaternion.Slerp(source.localRotation, clampedLocalRotation, deltaTime * rotationLerpSpeed);
     }
 }
