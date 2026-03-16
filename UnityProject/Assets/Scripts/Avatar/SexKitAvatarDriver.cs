@@ -29,7 +29,8 @@ public class SexKitAvatarDriver : MonoBehaviour
     public string fallbackUserSleepSide = "left";
     public float standingFloorY = 0f;
     public float partnerBedInset = 0.22f;
-    public float partnerHeadInset = 0.2f;
+    public float partnerFootInset = 0.24f;
+    public float partnerMattressLift = 0.14f;
     public float partnerReclineDegrees = 28f;
 
     // Joint transforms for primitive mode
@@ -312,9 +313,9 @@ public class SexKitAvatarDriver : MonoBehaviour
         var partnerDirection = -userDirection;
 
         var userPosition = bedCenter + userDirection * sideOffset;
-        var partnerPosition = bedCenter + partnerDirection * (bedWidth * partnerBedInset) + forward * (bedLength * 0.5f - partnerHeadInset);
+        var partnerPosition = bedCenter + partnerDirection * (bedWidth * partnerBedInset) - forward * (bedLength * 0.5f - partnerFootInset);
         userPosition.y = floorY;
-        partnerPosition.y = bedCenter.y + 0.02f;
+        partnerPosition.y = bedCenter.y + partnerMattressLift;
 
         userDefaultAnchor.position = userPosition;
         partnerDefaultAnchor.position = partnerPosition;
@@ -364,8 +365,11 @@ public class SexKitAvatarDriver : MonoBehaviour
             ? bed.right.normalized
             : Vector3.right;
 
-        var lying = Quaternion.LookRotation(Vector3.up, -forward);
-        return Quaternion.AngleAxis(-reclineDegrees, right) * lying;
+        // The imported model stands upright with local up running feet->head.
+        // When reclining on the bed, the head should point toward the bed headboard.
+        var lying = Quaternion.LookRotation(Vector3.up, forward);
+        var faceUp = Quaternion.AngleAxis(180f, forward) * lying;
+        return Quaternion.AngleAxis(-reclineDegrees, right) * faceUp;
     }
 
     void OnDestroy()

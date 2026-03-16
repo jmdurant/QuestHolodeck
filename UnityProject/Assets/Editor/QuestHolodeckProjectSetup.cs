@@ -27,6 +27,10 @@ public static class QuestHolodeckProjectSetup
     private const string ApkOutputPath = "Builds/QuestHolodeck.apk";
     private const string OpenXRLoaderTypeName = "UnityEngine.XR.OpenXR.OpenXRLoader";
     private const string JoyModelPath = "Assets/Models/joy_v1_5_sportswear.fbx";
+    private static readonly Vector3 DefaultUserRigPosition = new(-1.5152f, 1.55f, -2.0f);
+    private static readonly Vector3 DefaultUserRigRotation = new(0f, 90f, 0f);
+    private static readonly Vector3 DefaultJoyPosition = new(0.42f, 0.72f, -2.45f);
+    private static readonly Vector3 DefaultJoyRotation = new(90f, 180f, 0f);
 
     [MenuItem("Tools/Quest Holodeck/Run Project Setup")]
     public static void RunFromMenu()
@@ -345,11 +349,7 @@ public static class QuestHolodeckProjectSetup
         passthroughManager.ovrManager = ovrManager;
         passthroughManager.cameraRig = cameraRig;
 
-        var userStartStaging = cameraRig.gameObject.AddComponent<UserStartStagingController>();
-        userStartStaging.cameraRig = cameraRig;
-        userStartStaging.avatarDriver = avatarDriver;
-
-        var connectionCanvas = CreateConnectionCanvas(bonjourDiscovery);
+        var connectionCanvas = CreateConnectionCanvas(bonjourDiscovery, cameraRig);
         var hudCanvas = CreateHudCanvas();
         var audioRoot = new GameObject("AgentAudio");
         var agentVoiceObject = new GameObject("AgentVoice");
@@ -386,6 +386,7 @@ public static class QuestHolodeckProjectSetup
 
         partnerBodyController.avatarDriver = avatarDriver;
         partnerBodyController.modelRoot = joyModel != null ? joyModel.transform : null;
+        partnerBodyController.stageAtBedSideByDefault = false;
         partnerFaceController.modelRoot = joyModel != null ? joyModel.transform : null;
 
         var observerRoot = new GameObject("ObserverSystem");
@@ -504,8 +505,8 @@ public static class QuestHolodeckProjectSetup
         }
 
         instance.name = "OVRCameraRig";
-        instance.transform.position = Vector3.zero;
-        instance.transform.rotation = Quaternion.identity;
+        instance.transform.position = DefaultUserRigPosition;
+        instance.transform.rotation = Quaternion.Euler(DefaultUserRigRotation);
         return instance.GetComponent<OVRCameraRig>();
     }
 
@@ -527,27 +528,34 @@ public static class QuestHolodeckProjectSetup
 
         instance.name = "JoyPartner";
         instance.transform.SetParent(parent, false);
-        instance.transform.localPosition = localOffset;
-        instance.transform.localRotation = Quaternion.identity;
+        instance.transform.localPosition = DefaultJoyPosition;
+        instance.transform.localRotation = Quaternion.Euler(DefaultJoyRotation);
         instance.transform.localScale = Vector3.one;
         return instance;
     }
 
-    private static GameObject CreateConnectionCanvas(BonjourDiscovery bonjourDiscovery)
+    private static GameObject CreateConnectionCanvas(BonjourDiscovery bonjourDiscovery, OVRCameraRig cameraRig)
     {
         var canvasObject = CreateUIRoot("ConnectionCanvas", RenderMode.ScreenSpaceOverlay, null);
         var canvas = canvasObject.GetComponent<Canvas>();
+        var canvasRect = canvasObject.GetComponent<RectTransform>();
         canvas.pixelPerfect = false;
+        canvas.transform.position = Vector3.zero;
+        canvas.transform.rotation = Quaternion.identity;
+        canvas.transform.localScale = Vector3.one;
+        canvasRect.sizeDelta = Vector2.zero;
 
         var rootPanel = CreatePanel("ConnectPanel", canvasObject.transform, new Color(0.06f, 0.07f, 0.09f, 0.88f));
-        StretchToParent(rootPanel.GetComponent<RectTransform>(), 0.15f, 0.15f, 0.15f, 0.15f);
+        CenterRect(rootPanel.GetComponent<RectTransform>(), 1120f, 820f);
 
         var layout = rootPanel.AddComponent<VerticalLayoutGroup>();
         layout.padding = new RectOffset(40, 40, 40, 40);
         layout.spacing = 18f;
         layout.childAlignment = TextAnchor.UpperCenter;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
         layout.childForceExpandWidth = true;
-        layout.childControlHeight = false;
+        layout.childForceExpandHeight = false;
 
         var title = CreateText("TitleText", rootPanel.transform, "SexKit Quest", 48, TextAlignmentOptions.Center);
         SetPreferredHeight(title.rectTransform, 72f);
@@ -561,30 +569,41 @@ public static class QuestHolodeckProjectSetup
         var buttonRowLayout = buttonRow.AddComponent<HorizontalLayoutGroup>();
         buttonRowLayout.spacing = 16f;
         buttonRowLayout.childAlignment = TextAnchor.MiddleCenter;
+        buttonRowLayout.childControlWidth = true;
+        buttonRowLayout.childControlHeight = true;
         buttonRowLayout.childForceExpandWidth = true;
-        buttonRowLayout.childControlHeight = false;
+        buttonRowLayout.childForceExpandHeight = false;
         SetPreferredHeight(buttonRow.GetComponent<RectTransform>(), 72f);
 
         var connectButton = CreateButton("ConnectButton", buttonRow.transform, "Connect");
         var scanButton = CreateButton("ScanButton", buttonRow.transform, "Scan Network");
         var exitButton = CreateButton("ExitButton", buttonRow.transform, "Exit");
+        SetPreferredWidth(connectButton.GetComponent<RectTransform>(), 280f);
+        SetPreferredWidth(scanButton.GetComponent<RectTransform>(), 280f);
+        SetPreferredWidth(exitButton.GetComponent<RectTransform>(), 220f);
         SetPreferredHeight(connectButton.GetComponent<RectTransform>(), 72f);
         SetPreferredHeight(scanButton.GetComponent<RectTransform>(), 72f);
         SetPreferredHeight(exitButton.GetComponent<RectTransform>(), 72f);
+
+        var continueOfflineButton = CreateButton("ContinueOfflineButton", rootPanel.transform, "Continue Offline");
+        SetPreferredWidth(continueOfflineButton.GetComponent<RectTransform>(), 360f);
+        SetPreferredHeight(continueOfflineButton.GetComponent<RectTransform>(), 72f);
 
         var statusText = CreateText("StatusText", rootPanel.transform, "Waiting to scan...", 22, TextAlignmentOptions.Center);
         SetPreferredHeight(statusText.rectTransform, 44f);
 
         var connectedPanel = CreatePanel("ConnectedPanel", canvasObject.transform, new Color(0.06f, 0.07f, 0.09f, 0.88f));
-        StretchToParent(connectedPanel.GetComponent<RectTransform>(), 0.15f, 0.2f, 0.15f, 0.2f);
+        CenterRect(connectedPanel.GetComponent<RectTransform>(), 1040f, 760f);
         connectedPanel.SetActive(false);
 
         var connectedLayout = connectedPanel.AddComponent<VerticalLayoutGroup>();
         connectedLayout.padding = new RectOffset(40, 40, 40, 40);
         connectedLayout.spacing = 18f;
         connectedLayout.childAlignment = TextAnchor.UpperCenter;
+        connectedLayout.childControlWidth = true;
+        connectedLayout.childControlHeight = true;
         connectedLayout.childForceExpandWidth = true;
-        connectedLayout.childControlHeight = false;
+        connectedLayout.childForceExpandHeight = false;
 
         var frameCountText = CreateText("FrameCountText", connectedPanel.transform, "0 frames", 32, TextAlignmentOptions.Center);
         SetPreferredHeight(frameCountText.rectTransform, 52f);
@@ -595,12 +614,16 @@ public static class QuestHolodeckProjectSetup
         var connectedButtonRowLayout = connectedButtonRow.AddComponent<HorizontalLayoutGroup>();
         connectedButtonRowLayout.spacing = 16f;
         connectedButtonRowLayout.childAlignment = TextAnchor.MiddleCenter;
+        connectedButtonRowLayout.childControlWidth = true;
+        connectedButtonRowLayout.childControlHeight = true;
         connectedButtonRowLayout.childForceExpandWidth = true;
-        connectedButtonRowLayout.childControlHeight = false;
+        connectedButtonRowLayout.childForceExpandHeight = false;
         SetPreferredHeight(connectedButtonRow.GetComponent<RectTransform>(), 72f);
 
         var disconnectButton = CreateButton("DisconnectButton", connectedButtonRow.transform, "Disconnect");
         var connectedExitButton = CreateButton("ConnectedExitButton", connectedButtonRow.transform, "Exit");
+        SetPreferredWidth(disconnectButton.GetComponent<RectTransform>(), 320f);
+        SetPreferredWidth(connectedExitButton.GetComponent<RectTransform>(), 220f);
         SetPreferredHeight(disconnectButton.GetComponent<RectTransform>(), 72f);
         SetPreferredHeight(connectedExitButton.GetComponent<RectTransform>(), 72f);
 
@@ -609,6 +632,7 @@ public static class QuestHolodeckProjectSetup
         connectionUi.connectButton = connectButton;
         connectionUi.disconnectButton = disconnectButton;
         connectionUi.scanButton = scanButton;
+        connectionUi.continueOfflineButton = continueOfflineButton;
         connectionUi.exitButton = exitButton;
         connectionUi.connectedExitButton = connectedExitButton;
         connectionUi.statusText = statusText;
@@ -779,11 +803,26 @@ public static class QuestHolodeckProjectSetup
         layout.preferredHeight = height;
     }
 
+    private static void SetPreferredWidth(RectTransform rectTransform, float width)
+    {
+        var layout = rectTransform.gameObject.GetComponent<LayoutElement>() ?? rectTransform.gameObject.AddComponent<LayoutElement>();
+        layout.preferredWidth = width;
+    }
+
     private static void SetAnchoredSize(RectTransform rectTransform, float width, float height)
     {
         rectTransform.anchorMin = new Vector2(0f, 1f);
         rectTransform.anchorMax = new Vector2(0f, 1f);
         rectTransform.pivot = new Vector2(0f, 1f);
+        rectTransform.sizeDelta = new Vector2(width, height);
+    }
+
+    private static void CenterRect(RectTransform rectTransform, float width, float height)
+    {
+        rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+        rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+        rectTransform.pivot = new Vector2(0.5f, 0.5f);
+        rectTransform.anchoredPosition = Vector2.zero;
         rectTransform.sizeDelta = new Vector2(width, height);
     }
 }

@@ -21,6 +21,14 @@ public class RoomMeshLoader : MonoBehaviour
     public GameObject bedPrefab;
     public Vector3 bedOffset = new Vector3(0, 0.6f, -2f); // default placement
 
+    [Header("Fallback Calibration Defaults")]
+    public bool spawnFallbackBedOnStart = true;
+    public string fallbackBedSize = "king";
+    public float fallbackBedWidth = 1.9304f;   // 76 in
+    public float fallbackBedLength = 2.032f;   // 80 in
+    public float fallbackMattressHeight = 0.6f;
+    public string fallbackUserSleepSide = "left";
+
     [Header("Bedside Tables")]
     public bool createBedsideTables = true;
     public Vector2 bedsideTableTopSize = new Vector2(0.6096f, 0.6096f); // 2ft x 2ft
@@ -48,6 +56,16 @@ public class RoomMeshLoader : MonoBehaviour
     void Start()
     {
         avatarDriver ??= FindFirstObjectByType<SexKitAvatarDriver>();
+        if (avatarDriver != null && !string.IsNullOrWhiteSpace(fallbackUserSleepSide))
+        {
+            avatarDriver.fallbackUserSleepSide = fallbackUserSleepSide;
+        }
+
+        if (spawnFallbackBedOnStart)
+        {
+            PlaceBed(fallbackBedWidth, fallbackBedLength, fallbackMattressHeight);
+        }
+
         SexKitWebSocketClient.Instance.OnConnected += OnConnected;
         SexKitWebSocketClient.Instance.OnFrameReceived += OnFirstFrame;
     }
@@ -109,7 +127,7 @@ public class RoomMeshLoader : MonoBehaviour
         if (_bedInstance != null)
         {
             _bedInstance.transform.localScale = new Vector3(width, 0.05f, length);
-            _bedInstance.transform.position = new Vector3(0, mattressHeight, -2f);
+            _bedInstance.transform.position = new Vector3(bedOffset.x, mattressHeight, bedOffset.z);
         }
         else
         {
@@ -117,7 +135,7 @@ public class RoomMeshLoader : MonoBehaviour
             _bedInstance = GameObject.CreatePrimitive(PrimitiveType.Cube);
             _bedInstance.name = "Bed";
             _bedInstance.transform.localScale = new Vector3(width, 0.05f, length);
-            _bedInstance.transform.position = new Vector3(0, mattressHeight, -2f);
+            _bedInstance.transform.position = new Vector3(bedOffset.x, mattressHeight, bedOffset.z);
 
             var mat = _bedInstance.GetComponent<Renderer>().material;
             mat.color = new Color(0.15f, 0.15f, 0.15f, 0.6f);
@@ -144,7 +162,7 @@ public class RoomMeshLoader : MonoBehaviour
         _leftBedsideTable ??= CreateBedsideTable("BedsideTableLeft");
         _rightBedsideTable ??= CreateBedsideTable("BedsideTableRight");
 
-        var bedCenter = new Vector3(0f, mattressHeight, -2f);
+        var bedCenter = new Vector3(bedOffset.x, mattressHeight, bedOffset.z);
         var halfWidth = width * 0.5f;
         var halfLength = length * 0.5f;
         var halfTableWidth = bedsideTableTopSize.x * 0.5f;
@@ -188,7 +206,7 @@ public class RoomMeshLoader : MonoBehaviour
         _leftPillow ??= CreatePillow("PillowLeft");
         _rightPillow ??= CreatePillow("PillowRight");
 
-        var bedCenter = new Vector3(0f, mattressHeight, -2f);
+        var bedCenter = new Vector3(bedOffset.x, mattressHeight, bedOffset.z);
         var halfWidth = width * 0.5f;
         var halfLength = length * 0.5f;
         var pillowCenterY = mattressHeight + pillowSize.y * 0.45f;

@@ -37,10 +37,10 @@ public class JoyFaceController : PartnerFaceController
     private Vector3 _rightLipCornerBase;
     private Quaternion _jawBaseRotation;
 
-    private float _targetSmile;
-    private float _targetBlink;
-    private float _targetJawOpen;
-    private float _targetBrowLift;
+    private float _joyTargetSmile;
+    private float _joyTargetBlink;
+    private float _joyTargetJawOpen;
+    private float _joyTargetBrowLift;
     private readonly Dictionary<string, Transform> _visemeBones = new();
     private readonly Dictionary<string, Vector3> _visemeBasePositions = new();
     private readonly Dictionary<string, float> _visemeWeights = new();
@@ -70,65 +70,65 @@ public class JoyFaceController : PartnerFaceController
         switch (preset)
         {
             case PartnerFacePreset.SoftSmile:
-                _targetSmile = 0.35f;
-                _targetBlink = 0.05f;
-                _targetBrowLift = 0.08f;
+                _joyTargetSmile = 0.35f;
+                _joyTargetBlink = 0.05f;
+                _joyTargetBrowLift = 0.08f;
                 break;
 
             case PartnerFacePreset.Warm:
-                _targetSmile = 0.45f;
-                _targetBlink = 0.08f;
-                _targetBrowLift = 0.12f;
+                _joyTargetSmile = 0.45f;
+                _joyTargetBlink = 0.08f;
+                _joyTargetBrowLift = 0.12f;
                 break;
 
             case PartnerFacePreset.Teasing:
-                _targetSmile = 0.55f;
-                _targetBlink = 0.03f;
-                _targetBrowLift = 0.05f;
+                _joyTargetSmile = 0.55f;
+                _joyTargetBlink = 0.03f;
+                _joyTargetBrowLift = 0.05f;
                 break;
 
             case PartnerFacePreset.Concerned:
-                _targetSmile = 0.05f;
-                _targetBlink = 0.12f;
-                _targetBrowLift = 0.18f;
+                _joyTargetSmile = 0.05f;
+                _joyTargetBlink = 0.12f;
+                _joyTargetBrowLift = 0.18f;
                 break;
 
             case PartnerFacePreset.Focused:
-                _targetSmile = 0.08f;
-                _targetBlink = 0.02f;
-                _targetBrowLift = 0.03f;
+                _joyTargetSmile = 0.08f;
+                _joyTargetBlink = 0.02f;
+                _joyTargetBrowLift = 0.03f;
                 break;
 
             case PartnerFacePreset.Pleasure:
-                _targetSmile = 0.42f;
-                _targetBlink = 0.06f;
-                _targetBrowLift = 0.1f;
+                _joyTargetSmile = 0.42f;
+                _joyTargetBlink = 0.06f;
+                _joyTargetBrowLift = 0.1f;
                 break;
 
             case PartnerFacePreset.IntensePleasure:
-                _targetSmile = 0.55f;
-                _targetBlink = 0.1f;
-                _targetBrowLift = 0.14f;
+                _joyTargetSmile = 0.55f;
+                _joyTargetBlink = 0.1f;
+                _joyTargetBrowLift = 0.14f;
                 break;
 
             case PartnerFacePreset.Breathless:
-                _targetSmile = 0.18f;
-                _targetBlink = 0.04f;
-                _targetBrowLift = 0.08f;
-                _targetJawOpen = Mathf.Max(_targetJawOpen, 0.25f);
+                _joyTargetSmile = 0.18f;
+                _joyTargetBlink = 0.04f;
+                _joyTargetBrowLift = 0.08f;
+                _joyTargetJawOpen = Mathf.Max(_joyTargetJawOpen, 0.25f);
                 break;
 
             case PartnerFacePreset.Gentle:
-                _targetSmile = 0.22f;
-                _targetBlink = 0.08f;
-                _targetBrowLift = 0.06f;
+                _joyTargetSmile = 0.22f;
+                _joyTargetBlink = 0.08f;
+                _joyTargetBrowLift = 0.06f;
                 break;
 
             case PartnerFacePreset.Neutral:
             default:
-                _targetSmile = 0f;
-                _targetBlink = 0f;
-                _targetBrowLift = 0f;
+                _joyTargetSmile = 0f;
+                _joyTargetBlink = 0f;
+                _joyTargetBrowLift = 0f;
                 break;
         }
     }
@@ -140,25 +140,25 @@ public class JoyFaceController : PartnerFaceController
 
         if (lower.Contains("warm") || lower.Contains("happy") || lower.Contains("tease"))
         {
-            _targetSmile = Mathf.Max(_targetSmile, 0.25f + normalized * 0.4f);
+            _joyTargetSmile = Mathf.Max(_joyTargetSmile, 0.25f + normalized * 0.4f);
         }
         else if (lower.Contains("concern"))
         {
-            _targetBrowLift = Mathf.Max(_targetBrowLift, 0.12f + normalized * 0.12f);
-            _targetSmile = Mathf.Min(_targetSmile, 0.08f);
+            _joyTargetBrowLift = Mathf.Max(_joyTargetBrowLift, 0.12f + normalized * 0.12f);
+            _joyTargetSmile = Mathf.Min(_joyTargetSmile, 0.08f);
         }
         else if (lower.Contains("focus"))
         {
-            _targetBlink = Mathf.Min(_targetBlink, 0.03f);
+            _joyTargetBlink = Mathf.Min(_joyTargetBlink, 0.03f);
         }
     }
 
     public override void SetSpeechState(float mouthOpen, string speechStyle)
     {
-        _targetJawOpen = Mathf.Clamp01(mouthOpen);
+        _joyTargetJawOpen = Mathf.Clamp01(mouthOpen);
         if (!string.IsNullOrWhiteSpace(speechStyle) && speechStyle.ToLowerInvariant().Contains("soft"))
         {
-            _targetSmile = Mathf.Max(_targetSmile, 0.08f);
+            _joyTargetSmile = Mathf.Max(_joyTargetSmile, 0.08f);
         }
     }
 
@@ -197,23 +197,23 @@ public class JoyFaceController : PartnerFaceController
 
         if (jawBone != null)
         {
-            var jawRotation = _jawBaseRotation * Quaternion.Euler(_targetJawOpen * 18f, 0f, 0f);
+            var jawRotation = _jawBaseRotation * Quaternion.Euler(_joyTargetJawOpen * 18f, 0f, 0f);
             jawBone.localRotation = Quaternion.Slerp(jawBone.localRotation, jawRotation, deltaTime * blendshapeLerpSpeed);
         }
 
-        ApplyLid(leftUpperLid, _leftUpperLidBase, new Vector3(0f, -0.004f * _targetBlink, 0f), deltaTime);
-        ApplyLid(rightUpperLid, _rightUpperLidBase, new Vector3(0f, -0.004f * _targetBlink, 0f), deltaTime);
-        ApplyLid(leftLowerLid, _leftLowerLidBase, new Vector3(0f, 0.002f * _targetBlink, 0f), deltaTime);
-        ApplyLid(rightLowerLid, _rightLowerLidBase, new Vector3(0f, 0.002f * _targetBlink, 0f), deltaTime);
+        ApplyLid(leftUpperLid, _leftUpperLidBase, new Vector3(0f, -0.004f * _joyTargetBlink, 0f), deltaTime);
+        ApplyLid(rightUpperLid, _rightUpperLidBase, new Vector3(0f, -0.004f * _joyTargetBlink, 0f), deltaTime);
+        ApplyLid(leftLowerLid, _leftLowerLidBase, new Vector3(0f, 0.002f * _joyTargetBlink, 0f), deltaTime);
+        ApplyLid(rightLowerLid, _rightLowerLidBase, new Vector3(0f, 0.002f * _joyTargetBlink, 0f), deltaTime);
 
-        ApplyLocalPosition(leftBrow, _leftBrowBase, new Vector3(0f, 0.004f * _targetBrowLift, 0f), deltaTime);
-        ApplyLocalPosition(rightBrow, _rightBrowBase, new Vector3(0f, 0.004f * _targetBrowLift, 0f), deltaTime);
-        ApplyLocalPosition(leftLipCorner, _leftLipCornerBase, new Vector3(0.0025f * _targetSmile, 0.002f * _targetSmile, 0f), deltaTime);
-        ApplyLocalPosition(rightLipCorner, _rightLipCornerBase, new Vector3(-0.0025f * _targetSmile, 0.002f * _targetSmile, 0f), deltaTime);
+        ApplyLocalPosition(leftBrow, _leftBrowBase, new Vector3(0f, 0.004f * _joyTargetBrowLift, 0f), deltaTime);
+        ApplyLocalPosition(rightBrow, _rightBrowBase, new Vector3(0f, 0.004f * _joyTargetBrowLift, 0f), deltaTime);
+        ApplyLocalPosition(leftLipCorner, _leftLipCornerBase, new Vector3(0.0025f * _joyTargetSmile, 0.002f * _joyTargetSmile, 0f), deltaTime);
+        ApplyLocalPosition(rightLipCorner, _rightLipCornerBase, new Vector3(-0.0025f * _joyTargetSmile, 0.002f * _joyTargetSmile, 0f), deltaTime);
         ApplyVisemes(deltaTime);
 
-        _targetJawOpen = Mathf.MoveTowards(_targetJawOpen, 0f, deltaTime * 2f);
-        _targetBlink = Mathf.MoveTowards(_targetBlink, 0f, deltaTime * 1.5f);
+        _joyTargetJawOpen = Mathf.MoveTowards(_joyTargetJawOpen, 0f, deltaTime * 2f);
+        _joyTargetBlink = Mathf.MoveTowards(_joyTargetBlink, 0f, deltaTime * 1.5f);
     }
 
     private void AutoBind()

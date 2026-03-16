@@ -40,25 +40,23 @@ public class UserStartStagingController : MonoBehaviour
         }
 
         var targetEyePosition = userAnchorPosition + Vector3.up * targetEyeHeight;
-        var desiredLookDirection = ResolveDesiredLookDirection(userAnchorPosition, userAnchorRotation);
+        var desiredLookDirection = ResolveDesiredLookDirection(targetEyePosition, userAnchorRotation);
         ApplyRigPose(targetEyePosition, desiredLookDirection);
         _hasStaged = true;
     }
 
-    private Vector3 ResolveDesiredLookDirection(Vector3 userAnchorPosition, Quaternion userAnchorRotation)
+    private Vector3 ResolveDesiredLookDirection(Vector3 targetEyePosition, Quaternion userAnchorRotation)
     {
         if (avatarDriver != null && avatarDriver.TryGetDefaultStandingAnchor(false, out var partnerAnchorPosition, out _))
         {
-            var towardPartner = Vector3.ProjectOnPlane(
-                (partnerAnchorPosition + Vector3.up * partnerLookHeight) - userAnchorPosition,
-                Vector3.up);
+            var towardPartner = (partnerAnchorPosition + Vector3.up * partnerLookHeight) - targetEyePosition;
             if (towardPartner.sqrMagnitude > 0.001f)
             {
                 return towardPartner.normalized;
             }
         }
 
-        var fallbackForward = Vector3.ProjectOnPlane(userAnchorRotation * Vector3.forward, Vector3.up);
+        var fallbackForward = userAnchorRotation * Vector3.forward;
         if (fallbackForward.sqrMagnitude > 0.001f)
         {
             return fallbackForward.normalized;
@@ -71,15 +69,9 @@ public class UserStartStagingController : MonoBehaviour
     {
         var rigTransform = cameraRig.transform;
         var eyeTransform = cameraRig.centerEyeAnchor != null ? cameraRig.centerEyeAnchor : rigTransform;
-        var currentEyeForward = Vector3.ProjectOnPlane(eyeTransform.forward, Vector3.up);
-        if (currentEyeForward.sqrMagnitude < 0.001f)
-        {
-            currentEyeForward = Vector3.forward;
-        }
-
-        var yawDelta = Quaternion.FromToRotation(currentEyeForward.normalized, desiredLookDirection);
-        var eyePositionBeforeRotation = eyeTransform.position;
-        rigTransform.RotateAround(eyePositionBeforeRotation, Vector3.up, yawDelta.eulerAngles.y);
+        var desiredEyeRotation = Quaternion.LookRotation(desiredLookDirection.normalized, Vector3.up);
+        var eyeLocalRotation = Quaternion.Inverse(rigTransform.rotation) * eyeTransform.rotation;
+        rigTransform.rotation = desiredEyeRotation * Quaternion.Inverse(eyeLocalRotation);
 
         var translatedEyePosition = eyeTransform.position;
         rigTransform.position += targetEyePosition - translatedEyePosition;

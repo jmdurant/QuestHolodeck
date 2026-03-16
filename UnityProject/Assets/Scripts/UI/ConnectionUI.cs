@@ -15,6 +15,7 @@ public class ConnectionUI : MonoBehaviour
     public Button connectButton;
     public Button disconnectButton;
     public Button scanButton;
+    public Button continueOfflineButton;
     public Button exitButton;
     public Button connectedExitButton;
     public TextMeshProUGUI statusText;
@@ -25,12 +26,14 @@ public class ConnectionUI : MonoBehaviour
 
     [Header("Auto-Discovery")]
     public BonjourDiscovery bonjourDiscovery;
+    private bool _offlineDismissed;
 
     void Start()
     {
         connectButton?.onClick.AddListener(OnConnect);
         disconnectButton?.onClick.AddListener(OnDisconnect);
         scanButton?.onClick.AddListener(OnScan);
+        continueOfflineButton?.onClick.AddListener(OnContinueOffline);
         exitButton?.onClick.AddListener(OnExit);
         connectedExitButton?.onClick.AddListener(OnExit);
 
@@ -62,6 +65,12 @@ public class ConnectionUI : MonoBehaviour
         if (connectedPanel != null) connectedPanel.SetActive(true);
     }
 
+    void HidePanels()
+    {
+        if (connectPanel != null) connectPanel.SetActive(false);
+        if (connectedPanel != null) connectedPanel.SetActive(false);
+    }
+
     // MARK: - Actions
 
     void OnConnect()
@@ -81,6 +90,14 @@ public class ConnectionUI : MonoBehaviour
     void OnDisconnect()
     {
         SexKitWebSocketClient.Instance.Disconnect();
+    }
+
+    void OnContinueOffline()
+    {
+        _offlineDismissed = true;
+        SexKitWebSocketClient.Instance.Disconnect();
+        SetStatus("Offline scene mode");
+        HidePanels();
     }
 
     void OnExit()
@@ -131,6 +148,7 @@ public class ConnectionUI : MonoBehaviour
 
     void OnConnected()
     {
+        _offlineDismissed = false;
         SetStatus("Connected");
         ShowConnectedPanel();
     }
@@ -138,6 +156,12 @@ public class ConnectionUI : MonoBehaviour
     void OnDisconnected()
     {
         SetStatus("Disconnected");
+        if (_offlineDismissed)
+        {
+            HidePanels();
+            return;
+        }
+
         ShowConnectPanel();
     }
 
