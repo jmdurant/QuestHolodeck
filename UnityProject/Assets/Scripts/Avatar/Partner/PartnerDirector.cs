@@ -550,7 +550,11 @@ public class PartnerDirector : MonoBehaviour, IPartnerDirector
         return location.ToLowerInvariant() switch
         {
             "bed" => avatarDriver.bedTransform != null ? avatarDriver.bedTransform.position : null,
-            "beside_user" => trackingMerge != null ? trackingMerge.HeadPosition + Vector3.left * 0.5f : null,
+            "beside_user" => trackingMerge != null && trackingMerge.HeadPosition != Vector3.zero
+                ? trackingMerge.HeadPosition + Vector3.left * 0.5f
+                : TryGetDefaultAnchor(true),
+            "user_side_of_bed" => TryGetDefaultAnchor(true),
+            "partner_side_of_bed" => TryGetDefaultAnchor(false),
             "foot_of_bed" => avatarDriver.bedTransform != null
                 ? avatarDriver.bedTransform.position + Vector3.forward * 1.0f
                 : null,
@@ -560,6 +564,13 @@ public class PartnerDirector : MonoBehaviour, IPartnerDirector
             "standing_near" => trackingMerge != null ? trackingMerge.HeadPosition + Vector3.back * 1.0f : null,
             _ => null
         };
+    }
+
+    private Vector3? TryGetDefaultAnchor(bool forUser)
+    {
+        return avatarDriver != null && avatarDriver.TryGetDefaultStandingAnchor(forUser, out var position, out _)
+            ? position
+            : null;
     }
 
     // ── Posture Details (lean, openness, facing) ──

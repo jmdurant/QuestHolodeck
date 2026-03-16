@@ -22,6 +22,8 @@ public class PartnerFaceController : MonoBehaviour, IPartnerFaceController
     private float _blink;
     private float _jawOpen;
     private string _emotion = "neutral";
+    private string _activeViseme;
+    private float _activeVisemeWeight;
 
     public virtual void SetFacePreset(PartnerFacePreset preset, float blendTime)
     {
@@ -87,6 +89,41 @@ public class PartnerFaceController : MonoBehaviour, IPartnerFaceController
         {
             _targetSmile = Mathf.Max(_targetSmile, 10f);
         }
+    }
+
+    public virtual void SetViseme(string viseme, float weight)
+    {
+        _activeViseme = string.IsNullOrWhiteSpace(viseme) ? string.Empty : viseme;
+        _activeVisemeWeight = Mathf.Clamp01(weight);
+
+        // Fallback path for non-viseme-capable faces: vary jaw openness slightly by viseme family.
+        if (_activeVisemeWeight <= 0.001f)
+        {
+            return;
+        }
+
+        var visemeKey = _activeViseme.ToUpperInvariant();
+        var mouthOpen = visemeKey switch
+        {
+            "MBP" => 0.05f,
+            "FV" => 0.15f,
+            "L" => 0.22f,
+            "E" => 0.28f,
+            "U" => 0.2f,
+            "WQ" => 0.24f,
+            "O" => 0.36f,
+            "SHCH" => 0.3f,
+            "AI" => 0.48f,
+            _ => 0.24f,
+        };
+
+        _targetJawOpen = Mathf.Max(_targetJawOpen, mouthOpen * _activeVisemeWeight * 100f);
+    }
+
+    public virtual void ClearVisemes(float blendTime = 0.1f)
+    {
+        _activeViseme = string.Empty;
+        _activeVisemeWeight = 0f;
     }
 
     public virtual void Tick(float deltaTime)

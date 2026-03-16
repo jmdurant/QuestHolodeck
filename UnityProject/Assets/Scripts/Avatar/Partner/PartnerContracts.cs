@@ -23,6 +23,8 @@ public interface IPartnerFaceController
     void SetFacePreset(PartnerFacePreset preset, float blendTime);
     void SetEmotion(string emotion, float intensity);
     void SetSpeechState(float mouthOpen, string speechStyle);
+    void SetViseme(string viseme, float weight);
+    void ClearVisemes(float blendTime = 0.1f);
     void Tick(float deltaTime);
 }
 

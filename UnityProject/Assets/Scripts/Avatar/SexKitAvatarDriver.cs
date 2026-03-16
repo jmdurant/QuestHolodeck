@@ -22,6 +22,14 @@ public class SexKitAvatarDriver : MonoBehaviour
     public Vector3 sceneOffset = new Vector3(0, 0, -2f); // place scene in front of user
     public float interpolationSpeed = 4f;
 
+    [Header("Bed-Side Fallback Staging")]
+    public Transform userDefaultAnchor;
+    public Transform partnerDefaultAnchor;
+    public float bedSideClearance = 0.55f;
+    public string fallbackUserSleepSide = "left";
+    public float standingFloorY = 0f;
+    public float partnerBedInset = 0.22f;
+
     // Joint transforms for primitive mode
     private Dictionary<string, Transform> _jointsA = new();
     private Dictionary<string, Transform> _jointsB = new();
@@ -33,6 +41,7 @@ public class SexKitAvatarDriver : MonoBehaviour
     private Dictionary<string, Vector3> _targetB = new();
     private Dictionary<string, Vector3> _currentA = new();
     private Dictionary<string, Vector3> _currentB = new();
+    private string _resolvedUserSleepSide = "left";
 
     public enum AvatarMode
     {
@@ -88,6 +97,7 @@ public class SexKitAvatarDriver : MonoBehaviour
     void Start()
     {
         SexKitWebSocketClient.Instance.OnFrameReceived += OnFrame;
+        EnsureDefaultAnchors();
 
         if (mode == AvatarMode.Primitive)
         {
@@ -138,12 +148,16 @@ public class SexKitAvatarDriver : MonoBehaviour
             {
                 bedTransform.localScale = new Vector3(frame.bedWidth, 0.05f, frame.bedLength);
                 bedTransform.localPosition = new Vector3(0, frame.mattressHeight, 0) + sceneOffset;
+                UpdateDefaultStandingAnchors(frame);
             }
         }
     }
 
     private void OnFrame(LiveFrame frame)
     {
+        _resolvedUserSleepSide = ResolveUserSleepSide(frame);
+        UpdateDefaultStandingAnchors(frame);
+
         // Update targets from skeleton data
         // Use AllJointNames when ARKit tier (91 joints), CoreJointNames for lower tiers
         if (frame.skeletonA != null)
@@ -241,6 +255,109 @@ public class SexKitAvatarDriver : MonoBehaviour
                 line.SetPosition(1, positions[bone.Item2] + sceneOffset);
             }
         }
+    }
+
+    public bool TryGetDefaultStandingAnchor(bool forUser, out Vector3 position, out Quaternion rotation)
+    {
+        UpdateDefaultStandingAnchors(SexKitWebSocketClient.Instance != null ? SexKitWebSocketClient.Instance.latestFrame : null);
+        var anchor = forUser ? userDefaultAnchor : partnerDefaultAnchor;
+        if (anchor != null)
+        {
+            position = anchor.position;
+            rotation = anchor.rotation;
+            return true;
+        }
+
+        position = Vector3.zero;
+        rotation = Quaternion.identity;
+        return false;
+    }
+
+    private void EnsureDefaultAnchors()
+    {
+        if (userDefaultAnchor == null)
+        {
+            userDefaultAnchor = new GameObject("UserDefaultAnchor").transform;
+            userDefaultAnchor.SetParent(transform, false);
+        }
+
+        if (partnerDefaultAnchor == null)
+        {
+            partnerDefaultAnchor = new GameObject("PartnerDefaultAnchor").transform;
+            partnerDefaultAnchor.SetParent(transform, false);
+        }
+    }
+
+    private void UpdateDefaultStandingAnchors(LiveFrame frame)
+    {
+        EnsureDefaultAnchors();
+
+        if (bedTransform == null)
+        {
+            return;
+        }
+
+        var bedCenter = bedTransform.position;
+        var right = bedTransform.right.sqrMagnitude > 0.0001f ? bedTransform.right.normalized : Vector3.right;
+        var bedWidth = bedTransform.localScale.x > 0.01f ? bedTransform.localScale.x : (frame != null && frame.bedWidth > 0f ? frame.bedWidth : 1.5f);
+        var sideOffset = bedWidth * 0.5f + bedSideClearance;
+        var floorY = standingFloorY;
+
+        var userOnLeft = !string.Equals(_resolvedUserSleepSide, "right", System.StringComparison.OrdinalIgnoreCase);
+        var userDirection = userOnLeft ? -right : right;
+        var partnerDirection = -userDirection;
+
+        var userPosition = bedCenter + userDirection * sideOffset;
+        var partnerPosition = bedCenter + partnerDirection * (bedWidth * partnerBedInset);
+        userPosition.y = floorY;
+        partnerPosition.y = bedCenter.y + 0.02f;
+
+        userDefaultAnchor.position = userPosition;
+        partnerDefaultAnchor.position = partnerPosition;
+
+        userDefaultAnchor.rotation = CreateInwardFacingRotation(userPosition, bedCenter);
+        partnerDefaultAnchor.rotation = CreateLyingRotation(bedTransform);
+    }
+
+    private string ResolveUserSleepSide(LiveFrame frame)
+    {
+        var side = frame != null ? frame.userSleepSide : null;
+        if (string.IsNullOrWhiteSpace(side))
+        {
+            side = fallbackUserSleepSide;
+        }
+
+        side = side.Trim().ToLowerInvariant();
+        return side switch
+        {
+            "left" => "left",
+            "left_side" => "left",
+            "leftside" => "left",
+            "right" => "right",
+            "right_side" => "right",
+            "rightside" => "right",
+            _ => "left",
+        };
+    }
+
+    private static Quaternion CreateInwardFacingRotation(Vector3 source, Vector3 target)
+    {
+        var flatDirection = Vector3.ProjectOnPlane(target - source, Vector3.up);
+        if (flatDirection.sqrMagnitude < 0.0001f)
+        {
+            return Quaternion.identity;
+        }
+
+        return Quaternion.LookRotation(flatDirection.normalized, Vector3.up);
+    }
+
+    private static Quaternion CreateLyingRotation(Transform bed)
+    {
+        var forward = bed != null && bed.forward.sqrMagnitude > 0.0001f
+            ? bed.forward.normalized
+            : Vector3.forward;
+
+        return Quaternion.LookRotation(Vector3.up, -forward);
     }
 
     void OnDestroy()

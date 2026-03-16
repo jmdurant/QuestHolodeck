@@ -379,6 +379,16 @@ public static class QuestHolodeckProjectSetup
         partnerBodyController.modelRoot = joyModel != null ? joyModel.transform : null;
         partnerFaceController.modelRoot = joyModel != null ? joyModel.transform : null;
 
+        var observerRoot = new GameObject("ObserverSystem");
+        var observerController = observerRoot.AddComponent<ObserverCameraController>();
+        observerController.cameraRig = cameraRig;
+        observerController.avatarDriver = avatarDriver;
+        observerController.joyBodyController = partnerBodyController;
+        observerController.partnerDirector = partnerDirector;
+        observerController.observerEnabled = false;
+        observerController.pipEnabled = false;
+        observerController.activePreset = ObserverCameraController.ObserverCameraPreset.BedsideLeft;
+
         if (eventSystem != null)
         {
             SceneManager.MoveGameObjectToScene(eventSystem, scene);
@@ -391,6 +401,7 @@ public static class QuestHolodeckProjectSetup
         SceneManager.MoveGameObjectToScene(connectionCanvas, scene);
         SceneManager.MoveGameObjectToScene(hudCanvas, scene);
         SceneManager.MoveGameObjectToScene(audioRoot, scene);
+        SceneManager.MoveGameObjectToScene(observerRoot, scene);
 
         if (cameraRig != null)
         {

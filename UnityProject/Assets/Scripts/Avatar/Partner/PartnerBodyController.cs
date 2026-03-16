@@ -18,10 +18,12 @@ public class PartnerBodyController : MonoBehaviour, IPartnerBodyController
     protected Quaternion baseRootRotation;
     protected Vector3 targetLocalOffset;
     protected Vector3? lookTarget;
+    protected Vector3? headLookTarget;
     protected Vector3? leftHandTarget;
     protected Vector3? rightHandTarget;
 
     protected bool initialized;
+    public bool rotateRootTowardLookTarget = true;
 
     protected virtual void Awake()
     {
@@ -48,6 +50,7 @@ public class PartnerBodyController : MonoBehaviour, IPartnerBodyController
     public virtual void SetAttentionTarget(PartnerAttentionTarget target, Vector3? worldTarget, float blendTime)
     {
         lookTarget = worldTarget;
+        headLookTarget = worldTarget;
     }
 
     public virtual void SetHandTargets(Vector3? leftTarget, Vector3? rightTarget, float blendTime)
@@ -128,6 +131,7 @@ public class PartnerBodyController : MonoBehaviour, IPartnerBodyController
     public virtual void ClearTargets(float blendTime)
     {
         lookTarget = null;
+        headLookTarget = null;
         leftHandTarget = null;
         rightHandTarget = null;
         targetLocalOffset = Vector3.zero;
@@ -146,16 +150,16 @@ public class PartnerBodyController : MonoBehaviour, IPartnerBodyController
             baseRootLocalPosition + targetLocalOffset,
             deltaTime * positionLerpSpeed);
 
-        if (lookTarget.HasValue)
+        if (lookTarget.HasValue && rotateRootTowardLookTarget)
         {
             ApplyLookTarget(partnerRoot, lookTarget.Value, deltaTime);
-
-            if (headBone != null)
-            {
-                ApplyLookTarget(headBone, lookTarget.Value, deltaTime);
-            }
         }
-        else
+
+        if ((headLookTarget ?? lookTarget).HasValue && headBone != null)
+        {
+            ApplyLookTarget(headBone, (headLookTarget ?? lookTarget).Value, deltaTime);
+        }
+        else if (!lookTarget.HasValue)
         {
             partnerRoot.localRotation = Quaternion.Slerp(partnerRoot.localRotation, baseRootRotation, deltaTime * rotationLerpSpeed);
         }
@@ -213,5 +217,10 @@ public class PartnerBodyController : MonoBehaviour, IPartnerBodyController
 
         var targetRotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
         source.rotation = Quaternion.Slerp(source.rotation, targetRotation, deltaTime * rotationLerpSpeed);
+    }
+
+    protected void SetHeadLookTarget(Vector3? worldTarget)
+    {
+        headLookTarget = worldTarget;
     }
 }

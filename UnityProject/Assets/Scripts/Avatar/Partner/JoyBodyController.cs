@@ -5,6 +5,9 @@ public class JoyBodyController : PartnerBodyController
     [Header("Joy Model")]
     public Transform modelRoot;
     public string modelRootName = "JoyPartner";
+    public bool stageAtBedSideByDefault = true;
+    public bool defaultHeadTurnTowardUser = true;
+    public float defaultUserLookHeight = 1.35f;
 
     [Header("Breathing")]
     public Transform spineBone;       // spine_fk.002 or similar — chest expansion
@@ -19,6 +22,7 @@ public class JoyBodyController : PartnerBodyController
     public float rhythmAmplitude;
     private float _rhythmPhase;
     private Vector3 _rhythmBasePosition;
+    private bool _defaultStageApplied;
 
     protected override void Awake()
     {
@@ -51,6 +55,7 @@ public class JoyBodyController : PartnerBodyController
 
     public override void Tick(float deltaTime)
     {
+        TryApplyDefaultBedSideStage();
         base.Tick(deltaTime);
 
         // Breathing — chest bone scale oscillation
@@ -124,6 +129,31 @@ public class JoyBodyController : PartnerBodyController
         if (partnerRoot != null)
         {
             _rhythmBasePosition = partnerRoot.localPosition;
+        }
+    }
+
+    private void TryApplyDefaultBedSideStage()
+    {
+        if (_defaultStageApplied || !stageAtBedSideByDefault || avatarDriver == null || partnerRoot == null)
+        {
+            return;
+        }
+
+        if (avatarDriver.TryGetDefaultStandingAnchor(false, out var position, out var rotation))
+        {
+            partnerRoot.position = position;
+            partnerRoot.rotation = rotation;
+            baseRootLocalPosition = partnerRoot.localPosition;
+            baseRootRotation = partnerRoot.localRotation;
+            _rhythmBasePosition = partnerRoot.localPosition;
+            rotateRootTowardLookTarget = false;
+
+            if (defaultHeadTurnTowardUser && avatarDriver.TryGetDefaultStandingAnchor(true, out var userPosition, out _))
+            {
+                SetHeadLookTarget(userPosition + Vector3.up * defaultUserLookHeight);
+            }
+
+            _defaultStageApplied = true;
         }
     }
 

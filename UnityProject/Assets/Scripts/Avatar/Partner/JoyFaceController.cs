@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 public class JoyFaceController : PartnerFaceController
 {
@@ -16,6 +17,15 @@ public class JoyFaceController : PartnerFaceController
     public Transform rightBrow;
     public Transform leftLipCorner;
     public Transform rightLipCorner;
+    public Transform visemeAI;
+    public Transform visemeE;
+    public Transform visemeFV;
+    public Transform visemeL;
+    public Transform visemeMBP;
+    public Transform visemeO;
+    public Transform visemeShCh;
+    public Transform visemeU;
+    public Transform visemeWQ;
 
     private Vector3 _leftUpperLidBase;
     private Vector3 _rightUpperLidBase;
@@ -31,6 +41,23 @@ public class JoyFaceController : PartnerFaceController
     private float _targetBlink;
     private float _targetJawOpen;
     private float _targetBrowLift;
+    private readonly Dictionary<string, Transform> _visemeBones = new();
+    private readonly Dictionary<string, Vector3> _visemeBasePositions = new();
+    private readonly Dictionary<string, float> _visemeWeights = new();
+    private readonly Dictionary<string, float> _visemeTargetWeights = new();
+
+    private static readonly Dictionary<string, Vector3> VisemeOffsets = new()
+    {
+        { "AI", new Vector3(0f, 0.0036f, -0.0028f) },
+        { "E", new Vector3(0.0026f, 0.0022f, -0.0012f) },
+        { "FV", new Vector3(0f, 0.0012f, 0.0026f) },
+        { "L", new Vector3(0f, 0.0015f, 0.0012f) },
+        { "MBP", new Vector3(0f, -0.0022f, -0.0024f) },
+        { "O", new Vector3(0f, -0.0016f, 0.0038f) },
+        { "SHCH", new Vector3(0.0014f, 0.0018f, 0.0024f) },
+        { "U", new Vector3(0f, -0.0008f, 0.0023f) },
+        { "WQ", new Vector3(0f, -0.001f, 0.003f) },
+    };
 
     void Awake()
     {
@@ -135,6 +162,32 @@ public class JoyFaceController : PartnerFaceController
         }
     }
 
+    public override void SetViseme(string viseme, float weight)
+    {
+        var key = NormalizeViseme(viseme);
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return;
+        }
+
+        foreach (var current in new List<string>(_visemeTargetWeights.Keys))
+        {
+            _visemeTargetWeights[current] = current == key ? Mathf.Clamp01(weight) : 0f;
+        }
+
+        base.SetViseme(key, weight);
+    }
+
+    public override void ClearVisemes(float blendTime = 0.1f)
+    {
+        foreach (var key in new List<string>(_visemeTargetWeights.Keys))
+        {
+            _visemeTargetWeights[key] = 0f;
+        }
+
+        base.ClearVisemes(blendTime);
+    }
+
     public override void Tick(float deltaTime)
     {
         if (jawBone == null)
@@ -157,6 +210,7 @@ public class JoyFaceController : PartnerFaceController
         ApplyLocalPosition(rightBrow, _rightBrowBase, new Vector3(0f, 0.004f * _targetBrowLift, 0f), deltaTime);
         ApplyLocalPosition(leftLipCorner, _leftLipCornerBase, new Vector3(0.0025f * _targetSmile, 0.002f * _targetSmile, 0f), deltaTime);
         ApplyLocalPosition(rightLipCorner, _rightLipCornerBase, new Vector3(-0.0025f * _targetSmile, 0.002f * _targetSmile, 0f), deltaTime);
+        ApplyVisemes(deltaTime);
 
         _targetJawOpen = Mathf.MoveTowards(_targetJawOpen, 0f, deltaTime * 2f);
         _targetBlink = Mathf.MoveTowards(_targetBlink, 0f, deltaTime * 1.5f);
@@ -187,9 +241,19 @@ public class JoyFaceController : PartnerFaceController
         rightBrow ??= FindBone("DEF-brow_upper.002.R");
         leftLipCorner ??= FindBone("DEF-corner_up_lip.L");
         rightLipCorner ??= FindBone("DEF-corner_up_lip.R");
+        visemeAI ??= FindBone("AI");
+        visemeE ??= FindBone("E");
+        visemeFV ??= FindBone("FV");
+        visemeL ??= FindBone("L");
+        visemeMBP ??= FindBone("MBP");
+        visemeO ??= FindBone("O");
+        visemeShCh ??= FindBone("ShCh");
+        visemeU ??= FindBone("U");
+        visemeWQ ??= FindBone("WQ");
 
         faceRenderer ??= FindRenderer("body");
         debugRenderer ??= faceRenderer;
+        CacheVisemeBones();
     }
 
     private void CacheBasePose()
@@ -207,6 +271,7 @@ public class JoyFaceController : PartnerFaceController
         _rightBrowBase = rightBrow != null ? rightBrow.localPosition : Vector3.zero;
         _leftLipCornerBase = leftLipCorner != null ? leftLipCorner.localPosition : Vector3.zero;
         _rightLipCornerBase = rightLipCorner != null ? rightLipCorner.localPosition : Vector3.zero;
+        CacheVisemeBasePose();
     }
 
     private Transform FindBone(string boneName)
@@ -260,5 +325,86 @@ public class JoyFaceController : PartnerFaceController
         }
 
         target.localPosition = Vector3.Lerp(target.localPosition, basePosition + offset, deltaTime * blendshapeLerpSpeed);
+    }
+
+    private void CacheVisemeBones()
+    {
+        _visemeBones.Clear();
+
+        AddVisemeBone("AI", visemeAI);
+        AddVisemeBone("E", visemeE);
+        AddVisemeBone("FV", visemeFV);
+        AddVisemeBone("L", visemeL);
+        AddVisemeBone("MBP", visemeMBP);
+        AddVisemeBone("O", visemeO);
+        AddVisemeBone("SHCH", visemeShCh);
+        AddVisemeBone("U", visemeU);
+        AddVisemeBone("WQ", visemeWQ);
+    }
+
+    private void CacheVisemeBasePose()
+    {
+        _visemeBasePositions.Clear();
+        _visemeWeights.Clear();
+        _visemeTargetWeights.Clear();
+
+        foreach (var entry in _visemeBones)
+        {
+            if (entry.Value == null)
+            {
+                continue;
+            }
+
+            _visemeBasePositions[entry.Key] = entry.Value.localPosition;
+            _visemeWeights[entry.Key] = 0f;
+            _visemeTargetWeights[entry.Key] = 0f;
+        }
+    }
+
+    private void ApplyVisemes(float deltaTime)
+    {
+        foreach (var entry in _visemeBones)
+        {
+            if (entry.Value == null || !_visemeBasePositions.ContainsKey(entry.Key))
+            {
+                continue;
+            }
+
+            var current = _visemeWeights.TryGetValue(entry.Key, out var existingWeight) ? existingWeight : 0f;
+            var target = _visemeTargetWeights.TryGetValue(entry.Key, out var targetWeight) ? targetWeight : 0f;
+            current = Mathf.Lerp(current, target, deltaTime * blendshapeLerpSpeed);
+            _visemeWeights[entry.Key] = current;
+
+            var basePosition = _visemeBasePositions[entry.Key];
+            var offset = VisemeOffsets.TryGetValue(entry.Key, out var configuredOffset) ? configuredOffset : Vector3.zero;
+            entry.Value.localPosition = Vector3.Lerp(
+                entry.Value.localPosition,
+                basePosition + offset * current,
+                deltaTime * blendshapeLerpSpeed);
+        }
+    }
+
+    private void AddVisemeBone(string key, Transform bone)
+    {
+        if (bone != null)
+        {
+            _visemeBones[key] = bone;
+        }
+    }
+
+    private static string NormalizeViseme(string viseme)
+    {
+        if (string.IsNullOrWhiteSpace(viseme))
+        {
+            return null;
+        }
+
+        return viseme.Trim().ToUpperInvariant() switch
+        {
+            "SHCH" => "SHCH",
+            "SHCHH" => "SHCH",
+            "SHCH_" => "SHCH",
+            _ => viseme.Trim().ToUpperInvariant(),
+        };
     }
 }
