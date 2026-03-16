@@ -9,6 +9,7 @@ public class PartnerDirector : MonoBehaviour, IPartnerDirector
     public PartnerVoiceController voiceController;
     public QuestTrackingMerge trackingMerge;
     public SexKitAvatarDriver avatarDriver;
+    public SuggestConfirmationHandler confirmationHandler;
 
     [Header("Behavior")]
     public float defaultBlendTime = 0.35f;
@@ -19,6 +20,7 @@ public class PartnerDirector : MonoBehaviour, IPartnerDirector
     public PartnerRuntimeState runtimeState = new();
 
     private ControlFrame _activeFrame;
+    private ControlFrame _pendingSuggestFrame;  // stored while waiting for confirmation
     private bool _expiredHandled;
 
     void Start()
@@ -29,10 +31,16 @@ public class PartnerDirector : MonoBehaviour, IPartnerDirector
         voiceController ??= FindFirstObjectByType<PartnerVoiceController>();
         trackingMerge ??= FindFirstObjectByType<QuestTrackingMerge>();
         avatarDriver ??= GetComponent<SexKitAvatarDriver>();
+        confirmationHandler ??= FindFirstObjectByType<SuggestConfirmationHandler>();
 
         if (commandBus != null)
         {
             commandBus.OnControlFrameReceived += Apply;
+        }
+
+        if (confirmationHandler != null)
+        {
+            confirmationHandler.OnConfirmationResult += HandleConfirmationResult;
         }
     }
 
@@ -62,6 +70,29 @@ public class PartnerDirector : MonoBehaviour, IPartnerDirector
         runtimeState.mode = string.IsNullOrWhiteSpace(frame.mode) ? runtimeState.mode : frame.mode;
         runtimeState.activePriority = 1f;
         runtimeState.expiresAt = -1f;
+
+        // Suggest mode — pause Body B and wait for user confirmation
+        if (frame.mode != null && frame.mode.ToLowerInvariant() == "suggest" && confirmationHandler != null)
+        {
+            _pendingSuggestFrame = frame;
+            var timeout = 15f;  // default timeout
+            var verbal = frame.verbal?.text ?? "";
+            confirmationHandler.StartConfirmation(verbal, verbal, timeout);
+
+            // Body B pauses — lean back, expectant look
+            bodyController?.SetPoseIntent(PartnerPoseIntent.LeanBack, 0.3f);
+            bodyController?.SetAttentionTarget(PartnerAttentionTarget.UserFace,
+                trackingMerge != null ? trackingMerge.HeadPosition : null, 0.2f);
+            faceController?.SetFacePreset(PartnerFacePreset.SoftSmile, 0.3f);
+
+            // Speak the prompt if provided
+            if (!string.IsNullOrWhiteSpace(verbal))
+            {
+                voiceController?.Speak(verbal, frame.verbal?.emotion ?? "gentle");
+            }
+
+            return;  // Don't apply the rest of the frame until confirmed
+        }
 
         ApplyState(frame, blendTime, targetPoint);
     }
@@ -779,11 +810,45 @@ public class PartnerDirector : MonoBehaviour, IPartnerDirector
         faceController?.SetEmotion("neutral", 0f);
     }
 
+    // MARK: - Suggest Confirmation Result
+
+    private void HandleConfirmationResult(bool accepted, string method)
+    {
+        Debug.Log($"[PartnerDirector] Suggest {(accepted ? "ACCEPTED" : "DECLINED")} via {method}");
+
+        if (accepted && _pendingSuggestFrame != null)
+        {
+            // User said yes — apply the original frame's intended action
+            // The suggest frame itself was a proposal, apply it as a real command now
+            var frame = _pendingSuggestFrame;
+            frame.mode = "physical";  // promote from suggest to actual mode
+            var blendTime = defaultBlendTime;
+            var targetPoint = ResolveAttentionTarget(frame);
+            ApplyState(frame, blendTime, targetPoint);
+
+            voiceController?.Speak("mmm...", "warm");
+        }
+        else
+        {
+            // User said no — return to previous activity
+            bodyController?.SetPoseIntent(runtimeState.poseIntent, defaultBlendTime);
+            faceController?.SetFacePreset(PartnerFacePreset.Gentle, 0.5f);
+            voiceController?.Speak("okay...", "gentle");
+        }
+
+        _pendingSuggestFrame = null;
+    }
+
     void OnDestroy()
     {
         if (commandBus != null)
         {
             commandBus.OnControlFrameReceived -= Apply;
+        }
+
+        if (confirmationHandler != null)
+        {
+            confirmationHandler.OnConfirmationResult -= HandleConfirmationResult;
         }
     }
 }
