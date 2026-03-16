@@ -26,6 +26,7 @@ public static class QuestHolodeckProjectSetup
     private const string ScenePath = "Assets/Scenes/SexKitScene.unity";
     private const string ApkOutputPath = "Builds/QuestHolodeck.apk";
     private const string OpenXRLoaderTypeName = "UnityEngine.XR.OpenXR.OpenXRLoader";
+    private const string JoyModelPath = "Assets/Models/joy_v1_5_sportswear.fbx";
 
     [MenuItem("Tools/Quest Holodeck/Run Project Setup")]
     public static void RunFromMenu()
@@ -316,6 +317,10 @@ public static class QuestHolodeckProjectSetup
         var avatarDriver = avatarRoot.AddComponent<SexKitAvatarDriver>();
         var metaAvatarBridge = avatarRoot.AddComponent<MetaAvatarBridge>();
         var aiAgentController = avatarRoot.AddComponent<AIAgentController>();
+        var partnerCommandBus = avatarRoot.AddComponent<PartnerCommandBus>();
+        var partnerDirector = avatarRoot.AddComponent<PartnerDirector>();
+        var partnerBodyController = avatarRoot.AddComponent<JoyBodyController>();
+        var partnerFaceController = avatarRoot.AddComponent<JoyFaceController>();
         avatarDriver.mode = SexKitAvatarDriver.AvatarMode.Primitive;
         avatarDriver.sceneOffset = new Vector3(0f, 0f, -2f);
         metaAvatarBridge.useMetaAvatars = true;
@@ -349,6 +354,30 @@ public static class QuestHolodeckProjectSetup
         spatialAudioManager.agentVoice = agentVoice;
         spatialAudioManager.agentController = aiAgentController;
         spatialAudioManager.spatializeVoice = true;
+        var joyModel = InstantiatePartnerModel(avatarRoot.transform, avatarDriver.sceneOffset);
+        var partnerVoiceObject = new GameObject("PartnerVoice");
+        partnerVoiceObject.transform.SetParent(audioRoot.transform, false);
+        var partnerVoiceSource = partnerVoiceObject.AddComponent<AudioSource>();
+        partnerVoiceSource.playOnAwake = false;
+        partnerVoiceSource.spatialBlend = 1f;
+        partnerVoiceSource.minDistance = 0.5f;
+        partnerVoiceSource.maxDistance = 5f;
+        var partnerVoiceController = partnerVoiceObject.AddComponent<PartnerVoiceController>();
+        partnerVoiceController.audioSource = partnerVoiceSource;
+        partnerVoiceController.faceController = partnerFaceController;
+        partnerVoiceController.followSearchRoot = joyModel != null ? joyModel.transform : null;
+
+        partnerCommandBus.wsClient = wsClient;
+        partnerDirector.commandBus = partnerCommandBus;
+        partnerDirector.bodyController = partnerBodyController;
+        partnerDirector.faceController = partnerFaceController;
+        partnerDirector.voiceController = partnerVoiceController;
+        partnerDirector.trackingMerge = trackingMerge;
+        partnerDirector.avatarDriver = avatarDriver;
+
+        partnerBodyController.avatarDriver = avatarDriver;
+        partnerBodyController.modelRoot = joyModel != null ? joyModel.transform : null;
+        partnerFaceController.modelRoot = joyModel != null ? joyModel.transform : null;
 
         if (eventSystem != null)
         {
@@ -458,6 +487,30 @@ public static class QuestHolodeckProjectSetup
         instance.transform.position = Vector3.zero;
         instance.transform.rotation = Quaternion.identity;
         return instance.GetComponent<OVRCameraRig>();
+    }
+
+    private static GameObject InstantiatePartnerModel(Transform parent, Vector3 localOffset)
+    {
+        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(JoyModelPath);
+        if (prefab == null)
+        {
+            Debug.LogWarning($"[QuestHolodeckSetup] Joy model not found at {JoyModelPath}");
+            return null;
+        }
+
+        var instance = PrefabUtility.InstantiatePrefab(prefab) as GameObject;
+        if (instance == null)
+        {
+            Debug.LogWarning("[QuestHolodeckSetup] Failed to instantiate Joy model.");
+            return null;
+        }
+
+        instance.name = "JoyPartner";
+        instance.transform.SetParent(parent, false);
+        instance.transform.localPosition = localOffset;
+        instance.transform.localRotation = Quaternion.identity;
+        instance.transform.localScale = Vector3.one;
+        return instance;
     }
 
     private static GameObject CreateConnectionCanvas(BonjourDiscovery bonjourDiscovery)

@@ -22,10 +22,13 @@ public class SexKitWebSocketClient : MonoBehaviour
     [Header("Status")]
     public bool isConnected = false;
     public int framesReceived = 0;
+    public int controlFramesReceived = 0;
     public LiveFrame latestFrame;
+    public ControlFrame latestControlFrame;
 
     // Events
     public event Action<LiveFrame> OnFrameReceived;
+    public event Action<ControlFrame> OnControlFrameReceived;
     public event Action OnConnected;
     public event Action OnDisconnected;
 
@@ -103,17 +106,7 @@ public class SexKitWebSocketClient : MonoBehaviour
                 if (result.MessageType == WebSocketMessageType.Text)
                 {
                     string json = Encoding.UTF8.GetString(messageBuffer.GetBuffer(), 0, (int)messageBuffer.Length);
-                    var frame = JsonUtility.FromJson<LiveFrame>(json);
-                    if (frame != null)
-                    {
-                        latestFrame = frame;
-                        framesReceived++;
-
-                        UnityMainThreadDispatcher.Enqueue(() =>
-                        {
-                            OnFrameReceived?.Invoke(frame);
-                        });
-                    }
+                    RouteMessage(json);
                 }
             }
             catch (Exception e)
@@ -148,6 +141,117 @@ public class SexKitWebSocketClient : MonoBehaviour
         _shouldRun = false;
         _cts?.Cancel();
         _ws?.Dispose();
+    }
+
+    private void RouteMessage(string json)
+    {
+        if (TryParseEnvelope(json, out var liveFrame, out var controlFrame))
+        {
+            if (controlFrame != null)
+            {
+                DispatchControlFrame(controlFrame);
+                return;
+            }
+
+            if (liveFrame != null)
+            {
+                DispatchLiveFrame(liveFrame);
+                return;
+            }
+        }
+
+        if (LooksLikeControlFrame(json))
+        {
+            var control = JsonUtility.FromJson<ControlFrame>(json);
+            if (control != null && control.HasMeaningfulPayload())
+            {
+                DispatchControlFrame(control);
+                return;
+            }
+        }
+
+        var live = JsonUtility.FromJson<LiveFrame>(json);
+        if (live != null)
+        {
+            DispatchLiveFrame(live);
+        }
+    }
+
+    private void DispatchLiveFrame(LiveFrame frame)
+    {
+        latestFrame = frame;
+        framesReceived++;
+
+        UnityMainThreadDispatcher.Enqueue(() =>
+        {
+            OnFrameReceived?.Invoke(frame);
+        });
+    }
+
+    private void DispatchControlFrame(ControlFrame frame)
+    {
+        latestControlFrame = frame;
+        controlFramesReceived++;
+
+        UnityMainThreadDispatcher.Enqueue(() =>
+        {
+            OnControlFrameReceived?.Invoke(frame);
+        });
+    }
+
+    private static bool TryParseEnvelope(string json, out LiveFrame liveFrame, out ControlFrame controlFrame)
+    {
+        liveFrame = null;
+        controlFrame = null;
+
+        if (!json.Contains("liveFrame") && !json.Contains("controlFrame") && !json.Contains("\"type\"") && !json.Contains("\"messageType\""))
+        {
+            return false;
+        }
+
+        var envelope = JsonUtility.FromJson<SocketMessageEnvelope>(json);
+        if (envelope == null)
+        {
+            return false;
+        }
+
+        liveFrame = envelope.liveFrame ?? envelope.live;
+        controlFrame = envelope.controlFrame ?? envelope.control;
+
+        if (controlFrame == null && IsControlType(envelope.messageType, envelope.type))
+        {
+            controlFrame = JsonUtility.FromJson<ControlFrame>(json);
+        }
+        else if (liveFrame == null && IsLiveType(envelope.messageType, envelope.type))
+        {
+            liveFrame = JsonUtility.FromJson<LiveFrame>(json);
+        }
+
+        return liveFrame != null || controlFrame != null;
+    }
+
+    private static bool LooksLikeControlFrame(string json)
+    {
+        return json.Contains("\"commandType\"")
+               || json.Contains("\"poseIntent\"")
+               || json.Contains("\"facePreset\"")
+               || json.Contains("\"speechText\"")
+               || json.Contains("\"attentionTarget\"");
+    }
+
+    private static bool IsControlType(string messageType, string type)
+    {
+        return IsMatchingType(messageType, "control") || IsMatchingType(type, "control");
+    }
+
+    private static bool IsLiveType(string messageType, string type)
+    {
+        return IsMatchingType(messageType, "live") || IsMatchingType(type, "live");
+    }
+
+    private static bool IsMatchingType(string candidate, string expected)
+    {
+        return !string.IsNullOrWhiteSpace(candidate) && candidate.Trim().Equals(expected, StringComparison.OrdinalIgnoreCase);
     }
 }
 

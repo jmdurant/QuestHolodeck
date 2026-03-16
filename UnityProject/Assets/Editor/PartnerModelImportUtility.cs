@@ -26,6 +26,12 @@ public static class PartnerModelImportUtility
         DumpModelBones(DefaultModelPath);
     }
 
+    [MenuItem("Tools/Quest Holodeck/Dump Partner Model Renderers")]
+    public static void DumpDefaultModelRenderers()
+    {
+        DumpModelRenderers(DefaultModelPath);
+    }
+
     public static void ConfigureModel(string assetPath)
     {
         var importer = AssetImporter.GetAtPath(assetPath) as ModelImporter;
@@ -171,6 +177,42 @@ public static class PartnerModelImportUtility
         Debug.Log($"[QuestHolodeckSetup] Bone dump for {assetPath}\n{builder}");
     }
 
+    public static void DumpModelRenderers(string assetPath)
+    {
+        var model = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
+        if (model == null)
+        {
+            Debug.LogWarning($"[QuestHolodeckSetup] Model asset not found at {assetPath}");
+            return;
+        }
+
+        var builder = new StringBuilder();
+        var renderers = model.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+        foreach (var renderer in renderers)
+        {
+            builder.AppendLine($"Renderer: {renderer.name}");
+            builder.AppendLine($"  Path: {GetPath(renderer.transform)}");
+            builder.AppendLine($"  RootBone: {(renderer.rootBone != null ? renderer.rootBone.name : "<none>")}");
+            builder.AppendLine($"  Bones: {renderer.bones.Length}");
+
+            if (renderer.sharedMesh != null)
+            {
+                builder.AppendLine($"  Mesh: {renderer.sharedMesh.name}");
+                builder.AppendLine($"  BlendShapes: {renderer.sharedMesh.blendShapeCount}");
+                for (var i = 0; i < renderer.sharedMesh.blendShapeCount; i++)
+                {
+                    builder.AppendLine($"    - {renderer.sharedMesh.GetBlendShapeName(i)}");
+                }
+            }
+            else
+            {
+                builder.AppendLine("  Mesh: <none>");
+            }
+        }
+
+        Debug.Log($"[QuestHolodeckSetup] Renderer dump for {assetPath}\n{builder}");
+    }
+
     private static void AppendTransform(Transform transform, int depth, StringBuilder builder)
     {
         builder.Append(' ', depth * 2);
@@ -180,5 +222,19 @@ public static class PartnerModelImportUtility
         {
             AppendTransform(transform.GetChild(i), depth + 1, builder);
         }
+    }
+
+    private static string GetPath(Transform transform)
+    {
+        var names = new List<string>();
+        var current = transform;
+        while (current != null)
+        {
+            names.Add(current.name);
+            current = current.parent;
+        }
+
+        names.Reverse();
+        return string.Join("/", names);
     }
 }
