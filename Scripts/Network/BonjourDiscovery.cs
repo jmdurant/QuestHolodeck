@@ -88,18 +88,14 @@ public class BonjourDiscovery : MonoBehaviour
     {
         try
         {
-            // Get Android NsdManager system service
+            // Use Android NsdManager directly via JNI — no custom Java plugin needed
             using var unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
             using var activity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity");
             _nsdManager = activity.Call<AndroidJavaObject>("getSystemService", "servicediscovery");
 
-            // Create discovery listener
-            _discoveryListener = new AndroidJavaObject(
-                "com.sexkit.quest.NsdDiscoveryListener",
-                gameObject.name  // callback target
-            );
+            // Create anonymous NsdManager.DiscoveryListener via AndroidJavaProxy
+            _discoveryListener = new NsdDiscoveryProxy(this);
 
-            // Start discovery
             _nsdManager.Call("discoverServices",
                 "_sexkit-stream._tcp.",
                 1,  // NsdManager.PROTOCOL_DNS_SD
@@ -112,6 +108,7 @@ public class BonjourDiscovery : MonoBehaviour
         {
             Debug.LogError($"[Bonjour] Failed to start NSD: {e.Message}");
             isScanning = false;
+            OnScanTimeout?.Invoke();
         }
     }
 
@@ -130,21 +127,78 @@ public class BonjourDiscovery : MonoBehaviour
         }
     }
 
-    // Called from Android NsdDiscoveryListener via UnitySendMessage
-    public void OnNsdServiceFound(string serviceInfo)
+    public void OnServiceResolved(string host, int port)
     {
-        // serviceInfo format: "host:port"
-        var parts = serviceInfo.Split(':');
-        if (parts.Length >= 2)
-        {
-            discoveredHost = parts[0];
-            discoveredPort = int.Parse(parts[1]);
-            discoveredAddress = $"ws://{discoveredHost}:{discoveredPort}";
-            isFound = true;
-            isScanning = false;
+        discoveredHost = host;
+        discoveredPort = port;
+        discoveredAddress = $"ws://{discoveredHost}:{discoveredPort}";
+        isFound = true;
+        isScanning = false;
 
-            Debug.Log($"[Bonjour] Found SexKit server at {discoveredAddress}");
+        Debug.Log($"[Bonjour] Found SexKit server at {discoveredAddress}");
+
+        UnityMainThreadDispatcher.Enqueue(() => {
             OnServiceFound?.Invoke(discoveredHost, discoveredPort);
+        });
+    }
+
+    // AndroidJavaProxy implementing NsdManager.DiscoveryListener — no AAR/JAR needed
+    class NsdDiscoveryProxy : AndroidJavaProxy
+    {
+        private BonjourDiscovery _owner;
+
+        public NsdDiscoveryProxy(BonjourDiscovery owner)
+            : base("android.net.nsd.NsdManager$DiscoveryListener")
+        {
+            _owner = owner;
+        }
+
+        void onDiscoveryStarted(string serviceType)
+        {
+            Debug.Log($"[NSD] Discovery started for {serviceType}");
+        }
+
+        void onServiceFound(AndroidJavaObject serviceInfo)
+        {
+            Debug.Log("[NSD] Service found — resolving...");
+            // Resolve the service to get host + port
+            var resolveProxy = new NsdResolveProxy(_owner);
+            _owner._nsdManager.Call("resolveService", serviceInfo, resolveProxy);
+        }
+
+        void onServiceLost(AndroidJavaObject serviceInfo) { }
+        void onDiscoveryStopped(string serviceType) { }
+
+        void onStartDiscoveryFailed(string serviceType, int errorCode)
+        {
+            Debug.LogError($"[NSD] Discovery failed: error {errorCode}");
+            UnityMainThreadDispatcher.Enqueue(() => _owner.OnScanTimeout?.Invoke());
+        }
+
+        void onStopDiscoveryFailed(string serviceType, int errorCode) { }
+    }
+
+    // AndroidJavaProxy implementing NsdManager.ResolveListener
+    class NsdResolveProxy : AndroidJavaProxy
+    {
+        private BonjourDiscovery _owner;
+
+        public NsdResolveProxy(BonjourDiscovery owner)
+            : base("android.net.nsd.NsdManager$ResolveListener")
+        {
+            _owner = owner;
+        }
+
+        void onServiceResolved(AndroidJavaObject serviceInfo)
+        {
+            string host = serviceInfo.Call<AndroidJavaObject>("getHost").Call<string>("getHostAddress");
+            int port = serviceInfo.Call<int>("getPort");
+            _owner.OnServiceResolved(host, port);
+        }
+
+        void onResolveFailed(AndroidJavaObject serviceInfo, int errorCode)
+        {
+            Debug.LogWarning($"[NSD] Resolve failed: error {errorCode}");
         }
     }
 

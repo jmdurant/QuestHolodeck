@@ -110,6 +110,8 @@ public class ConnectionUI : MonoBehaviour
     void OnScanTimeout()
     {
         SetStatus("No SexKit server found — enter IP manually");
+        // Ensure connect panel is showing so user can enter manually
+        ShowConnectPanel();
     }
 
     // MARK: - WebSocket Callbacks

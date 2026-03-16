@@ -6,9 +6,10 @@
 - **Meta XR All-in-One SDK v85+** (current as of Feb 2026)
 - **Unity OpenXR Plugin** (required, replaces legacy Oculus XR Plugin)
 - **Unity XR Hands package** (for OpenXR hand tracking)
+- **TextMeshPro** (for UI text — usually included in Unity by default)
 - Meta Avatars SDK (optional, for premium avatar rendering)
 - Meta Quest 3 or Quest 3S
-- SexKit running on iPhone with LiveStream enabled
+- SexKit running on iPhone with LiveStream server enabled
 
 ## Project Setup
 
@@ -25,7 +26,7 @@ Requires: Unity 6+
 Window → Package Manager → + → Add package by name:
   com.meta.xr.sdk.all           (Meta XR All-in-One v85 — includes all below)
   com.unity.xr.hands             (Unity XR Hands — OpenXR hand tracking)
-  com.meta.xr.sdk.avatars        (Meta Avatars SDK — optional)
+  com.meta.xr.sdk.avatars        (Meta Avatars SDK — optional for premium avatars)
 
 The All-in-One SDK includes:
   - Core SDK (OVRManager, OVRCameraRig, passthrough)
@@ -55,54 +56,243 @@ The All-in-One SDK includes:
 | Eye tracking | **NO** | Yes (OVREyeGaze) |
 | Passthrough | Yes (color) | Yes (color) |
 | Body tracking | Yes (Movement SDK) | Yes |
-| LiDAR / depth | No | No |
 
 ### 3. Import SexKit Scripts
 
-Copy the `Scripts/` folder from this directory into your Unity project's `Assets/` folder:
+Copy the entire `Scripts/` folder into your Unity project's `Assets/` folder:
 
 ```
 Assets/
 ├── Scripts/
 │   ├── Network/
-│   │   ├── SexKitWebSocketClient.cs    — WebSocket connection to iPhone
-│   │   └── LiveFrame.cs                — Data model (matches SexKit JSON)
+│   │   ├── SexKitWebSocketClient.cs    — WebSocket + auto-reconnect
+│   │   ├── LiveFrame.cs                — Data model (matches SexKit JSON)
+│   │   ├── QuestTrackingUpstream.cs    — Sends Quest tracking back to iPhone
+│   │   └── BonjourDiscovery.cs         — Auto-discovers iPhone on network
 │   ├── Avatar/
-│   │   ├── SexKitAvatarDriver.cs       — Drives body avatars from skeleton data
-│   │   ├── MetaAvatarBridge.cs         — Meta Avatars SDK integration
-│   │   └── HapticDeviceBridge.cs       — Bluetooth haptic device sync
+│   │   ├── SexKitAvatarDriver.cs       — 3-mode body rendering + interpolation
+│   │   ├── MetaAvatarBridge.cs         — Meta Avatars SDK + Humanoid + finger mapping
+│   │   ├── AIAgentController.cs        — 4 intelligence modes + eye contact
+│   │   ├── QuestTrackingMerge.cs       — Merges Quest head/hands with SexKit body
+│   │   └── HapticDeviceBridge.cs       — BLE haptic device protocols (stub)
 │   ├── Room/
-│   │   └── RoomMeshLoader.cs           — Loads LiDAR room mesh + bed placement
+│   │   ├── RoomMeshLoader.cs           — LiDAR mesh import + bed placement
+│   │   └── PassthroughManager.cs       — Quest 3 mixed reality setup
 │   └── UI/
-│       └── SexKitHUD.cs                — Floating HUD (HR, position, timer)
+│       ├── ConnectionUI.cs             — Connection screen + auto-discover
+│       ├── SexKitHUD.cs                — Floating head-tracked HUD
+│       └── SpatialAudioManager.cs      — 3D positioned voice from Body B
 ```
 
-### 4. Scene Setup
+### 4. Scene Setup — Step by Step
 
-Create a new scene called "SexKitScene":
+Create a new scene called "SexKitScene". Build the hierarchy exactly as shown:
 
-1. **Empty GameObject "SexKitManager"**
-   - Add `SexKitWebSocketClient` component
-   - Add `UnityMainThreadDispatcher` component
-   - Set server address to your iPhone's IP
+#### Step 1: Core Manager
 
-2. **Empty GameObject "AvatarDriver"**
-   - Add `SexKitAvatarDriver` component
-   - Set mode to `Primitive` (or `MetaAvatar` if SDK imported)
+```
+Hierarchy: Create Empty → name "SexKitManager"
 
-3. **Empty GameObject "RoomLoader"**
-   - Add `RoomMeshLoader` component
-   - Assign room mesh prefab (imported OBJ/FBX from SexKit LiDAR scan)
+Add Components:
+  ✅ SexKitWebSocketClient
+  ✅ UnityMainThreadDispatcher
+  ✅ BonjourDiscovery
 
-4. **Canvas "HUD"**
-   - World Space Canvas
-   - Add `SexKitHUD` component
-   - Create TextMeshPro elements for HR, position, timer
-   - Set `followHead = true`
+Inspector:
+  SexKitWebSocketClient:
+    - serverAddress: (leave blank — Bonjour will fill it)
+    - autoReconnect: ✅
+  BonjourDiscovery:
+    - serviceType: _sexkit-stream._tcp.
+    - scanTimeout: 10
+```
 
-5. **Optional: "HapticBridge"**
-   - Add `HapticDeviceBridge` component
-   - Set device type and BLE address
+#### Step 2: Connection UI
+
+```
+Hierarchy: Create → UI → Canvas → name "ConnectionCanvas"
+  Set Canvas: Render Mode = Screen Space - Overlay
+
+Children of ConnectionCanvas:
+  - Panel "ConnectPanel"
+    - TMP_InputField "AddressInput" (placeholder: "ws://192.168.1.5:8080")
+    - Button "ConnectButton" (text: "Connect")
+    - Button "ScanButton" (text: "Scan Network")
+    - TextMeshPro "StatusText"
+  - Panel "ConnectedPanel" (starts inactive)
+    - TextMeshPro "FrameCountText"
+    - TextMeshPro "DataPreviewText"
+    - Button "DisconnectButton" (text: "Disconnect")
+
+Add Component to ConnectionCanvas:
+  ✅ ConnectionUI
+
+Inspector — wire references:
+  ConnectionUI:
+    - addressInput → AddressInput
+    - connectButton → ConnectButton
+    - disconnectButton → DisconnectButton
+    - scanButton → ScanButton
+    - statusText → StatusText
+    - frameCountText → FrameCountText
+    - dataPreviewText → DataPreviewText
+    - connectPanel → ConnectPanel
+    - connectedPanel → ConnectedPanel
+    - bonjourDiscovery → SexKitManager.BonjourDiscovery
+```
+
+#### Step 3: Avatar System
+
+```
+Hierarchy: Create Empty → name "AvatarSystem"
+
+Add Components:
+  ✅ SexKitAvatarDriver
+  ✅ MetaAvatarBridge
+  ✅ AIAgentController
+
+Inspector:
+  SexKitAvatarDriver:
+    - mode: Primitive (start here, upgrade to Humanoid/MetaAvatar later)
+    - sceneOffset: (0, 0, -2)  — place scene 2m in front of user
+
+  MetaAvatarBridge:
+    - useMetaAvatars: ❌ (until Meta Avatars SDK is imported)
+    - humanoidAnimatorA: (assign after importing character model)
+    - humanoidAnimatorB: (assign after importing character model)
+    - questTracking: → TrackingMerge.QuestTrackingMerge (after step 4)
+
+  AIAgentController:
+    - mode: RuleBased (start here)
+    - userTracking: → TrackingMerge.QuestTrackingMerge (after step 4)
+    - avatarDriver: → this.SexKitAvatarDriver
+    - enableEyeContact: ✅
+```
+
+#### Step 4: Quest Tracking
+
+```
+Hierarchy: Create Empty → name "TrackingMerge"
+
+Add Components:
+  ✅ QuestTrackingMerge
+  ✅ QuestTrackingUpstream
+
+Inspector:
+  QuestTrackingMerge:
+    - questHeadTransform: → OVRCameraRig/TrackingSpace/CenterEyeAnchor
+    - mergeHeadTracking: ✅
+    - mergeHandTracking: ✅
+    - enableEyeTracking: ❌ (Quest 3 has no eye tracking — enable for Quest Pro)
+
+  QuestTrackingUpstream:
+    - tracking: → this.QuestTrackingMerge
+    - wsClient: → SexKitManager.SexKitWebSocketClient
+    - sendUpstream: ✅
+    - sendRate: 30
+```
+
+#### Step 5: Room + Passthrough
+
+```
+Hierarchy: Create Empty → name "RoomEnvironment"
+
+Add Components:
+  ✅ RoomMeshLoader
+  ✅ PassthroughManager
+
+Inspector:
+  RoomMeshLoader:
+    - roomMeshPrefab: (assign imported LiDAR mesh, or leave null for passthrough-only)
+    - usePassthrough: ✅
+
+  PassthroughManager:
+    - enablePassthrough: ✅
+    - ovrManager: → OVRCameraRig.OVRManager
+    - cameraRig: → OVRCameraRig
+```
+
+#### Step 6: Spatial HUD
+
+```
+Hierarchy: Create → UI → Canvas → name "HUDCanvas"
+  Set Canvas: Render Mode = World Space
+  Set Scale: (0.001, 0.001, 0.001)  — world space UI scaling
+
+Children of HUDCanvas:
+  - TextMeshPro "HeartRateText"
+  - TextMeshPro "PositionText"
+  - TextMeshPro "TimerText"
+  - TextMeshPro "IntensityText"
+  - TextMeshPro "ConnectionText"
+  - TextMeshPro "DataSourceText"
+
+Add Component to HUDCanvas:
+  ✅ SexKitHUD
+
+Inspector:
+  SexKitHUD:
+    - heartRateText → HeartRateText
+    - positionText → PositionText
+    - timerText → TimerText
+    - intensityText → IntensityText
+    - connectionText → ConnectionText
+    - dataSourceText → DataSourceText
+    - followHead: ✅
+    - distanceFromHead: 1.5
+    - heightOffset: -0.3
+```
+
+#### Step 7: Spatial Audio
+
+```
+Hierarchy: Create Empty → name "AgentAudio"
+
+Add Components:
+  ✅ AudioSource (standard Unity, NOT OVRAudioSource which is deprecated)
+  ✅ SpatialAudioManager
+
+Inspector:
+  AudioSource:
+    - Spatial Blend: 1.0 (fully 3D)
+    - Min Distance: 0.5
+    - Max Distance: 5
+
+  SpatialAudioManager:
+    - agentVoice: → this.AudioSource
+    - agentController: → AvatarSystem.AIAgentController
+    - spatializeVoice: ✅
+```
+
+#### Step 8: OVRCameraRig (Meta XR)
+
+```
+Hierarchy: Add the OVRCameraRig prefab from Meta XR Core SDK
+  (Assets/Oculus/VR/Prefabs/OVRCameraRig)
+
+Ensure OVRManager component has:
+  - isInsightPassthroughEnabled: ✅
+  - Tracking Origin Type: Floor Level
+```
+
+#### Step 9: Wire Cross-References
+
+Now go back and connect the cross-references that depend on other objects:
+
+```
+AvatarSystem → MetaAvatarBridge:
+  - questTracking → TrackingMerge.QuestTrackingMerge
+
+AvatarSystem → AIAgentController:
+  - userTracking → TrackingMerge.QuestTrackingMerge
+
+TrackingMerge → QuestTrackingMerge:
+  - questHeadTransform → OVRCameraRig/TrackingSpace/CenterEyeAnchor
+
+RoomEnvironment → PassthroughManager:
+  - ovrManager → OVRCameraRig.OVRManager
+  - cameraRig → OVRCameraRig
+```
 
 ### 5. Build Settings
 
@@ -123,81 +313,152 @@ Project Settings → XR Plug-in Management:
   Under OpenXR → Meta Quest Feature Group → enable all
 ```
 
-### 6. Room Mesh Import
+### 6. Room Mesh Import (Optional)
 
-From SexKit iPhone → Settings → Room Backdrop:
-1. Export room scan as .obj (or .usdz)
-2. Convert to FBX: `usdzconvert room_scan.usdz room_scan.fbx` (or use Blender)
-3. Import FBX into Unity
-4. Assign as prefab in RoomMeshLoader
+If using a LiDAR room scan from SexKit iPhone (passthrough is the alternative):
 
-### 7. Meta Avatars (Premium)
+1. On iPhone: Settings → Room Backdrop → export room scan
+2. Transfer .obj file to PC
+3. Import into Unity (Assets → Import New Asset)
+4. Create prefab from imported mesh
+5. Assign prefab to RoomMeshLoader → roomMeshPrefab
 
-If using Meta Avatars SDK:
-1. Import com.meta.xr.sdk.avatars
-2. Uncomment the Meta Avatar code in `MetaAvatarBridge.cs`
-3. Add `OvrAvatarEntity` components to two GameObjects
-4. Assign to MetaAvatarBridge's avatarA and avatarB fields
-5. Joint overrides will drive the avatars from SexKit data
+### 7. Character Model Import
+
+For Humanoid avatar mode (recommended: JOY by BGShop):
+
+1. Import FBX into Unity
+2. In Import Settings → Rig → Animation Type: **Humanoid**
+3. Click **Configure** → verify bone mapping (green = auto-detected)
+4. If bones aren't auto-detected, manually map using the SexKit joint names:
+   ```
+   head → Head, neck → Neck, spine → Spine, hip → Hips
+   leftShoulder → LeftUpperArm, leftElbow → LeftLowerArm, leftWrist → LeftHand
+   (same for right side)
+   leftHip → LeftUpperLeg, leftKnee → LeftLowerLeg, leftAnkle → LeftFoot
+   (same for right side)
+   ```
+5. Create two instances in scene (Body A + Body B)
+6. Add Animator component to each
+7. Assign to MetaAvatarBridge → humanoidAnimatorA / humanoidAnimatorB
+8. Set SexKitAvatarDriver → mode: UnityHumanoid
+
+### 8. Meta Avatars (Premium — Optional)
+
+If using Meta Avatars SDK instead of Humanoid:
+1. Import `com.meta.xr.sdk.avatars` via Package Manager
+2. In `MetaAvatarBridge.cs`, uncomment the OvrAvatarEntity fields and code
+3. Add OvrAvatarEntity components to two GameObjects
+4. Assign to MetaAvatarBridge → avatarA / avatarB
+5. Set MetaAvatarBridge → useMetaAvatars: ✅
+6. Set SexKitAvatarDriver → mode: MetaAvatar
+
+### 9. Testing
+
+```
+1. iPhone: Open SexKit → More → Settings → Live Stream → Enable Server
+   Note the address shown (e.g., "192.168.1.5:8080")
+
+2. Quest: Build and Run (File → Build and Run)
+   - App opens to Connection screen
+   - "Scanning for SexKit on your network..." (Bonjour auto-discovery)
+   - If found: auto-fills address, tap Connect
+   - If not found: enter IP:Port manually, tap Connect
+
+3. Verify:
+   - Status shows "Connected"
+   - Frame count incrementing
+   - Data preview shows HR, position, phase
+   - Bodies appear in scene (primitive spheres or character model)
+   - HUD floating in front of you with session data
+   - Passthrough shows your real room (if enabled)
+
+4. Start a session on iPhone/Watch:
+   - Bodies start moving with live data
+   - Position changes reflected in real-time
+   - Verbal cues play from Body B's spatial position (if audio configured)
+```
 
 ## Architecture
 
 ```
 iPhone (SexKit)                      Quest 3
 ├── Watch sensors                    ├── SexKitWebSocketClient
-├── Position detection               │   └── Receives LiveFrame JSON
-├── Partner inference                 ├── SexKitAvatarDriver
-├── LiveStream WebSocket ──Wi-Fi──→  │   └── Drives 2 body avatars
-└── All ML/intelligence              ├── MetaAvatarBridge (optional)
-                                     │   └── Meta Avatar joint overrides
-                                     ├── RoomMeshLoader
-                                     │   └── LiDAR mesh or Hyperscape
+├── Position detection               │   └── Receives LiveFrame JSON (30fps)
+├── Partner inference                 ├── BonjourDiscovery
+├── Biometric pacing engine          │   └── Auto-finds iPhone on network
+├── LiveStream WebSocket ──Wi-Fi──→  ├── ConnectionUI
+│   (30fps, Bonjour advertised)      │   └── Connect/disconnect + status
+└── All ML/intelligence              ├── SexKitAvatarDriver
+                                     │   └── Drives 2 body avatars
+                                     ├── MetaAvatarBridge
+                                     │   └── Humanoid/Meta Avatar + 47 bones
+                                     ├── AIAgentController
+                                     │   └── 4 modes + eye contact + gaze
+                                     ├── QuestTrackingMerge
+                                     │   └── Head + hands merged with body
+                                     ├── QuestTrackingUpstream
+                                     │   └── Sends Quest tracking → iPhone
+                                     ├── RoomMeshLoader + PassthroughManager
+                                     │   └── Real room via passthrough or mesh
                                      ├── SexKitHUD
-                                     │   └── Floating data display
-                                     └── HapticDeviceBridge (optional)
-                                         └── BLE device sync
+                                     │   └── Floating head-tracked data
+                                     └── SpatialAudioManager
+                                         └── Voice from Body B's position
+```
+
+## Two-Way WebSocket Protocol
+
+```
+iPhone → Quest (30fps):
+  LiveFrame JSON with: skeleton, HR, HRV, respiratory rate,
+  position, intensity, rhythm, pacing phase, verbal cues,
+  bed calibration, UWB spatial, partner inference state
+
+Quest → iPhone (30fps):
+  QuestTrackingFrame JSON with: head 6DOF, hand joints (26 per hand),
+  gaze direction (Quest Pro only), tracking confidence
 ```
 
 ## Avatar Modes
 
-| Mode | Rendering | Quality | Setup |
-|------|-----------|---------|-------|
-| Primitive | Spheres + lines | Basic | No extra setup |
-| Unity Humanoid | Standard character model | Good | Import any humanoid FBX |
-| Meta Avatar | Meta's photorealistic avatars | Best | Meta Avatars SDK required |
+| Mode | Rendering | Quality | Fingers | Setup |
+|------|-----------|---------|---------|-------|
+| Primitive | Spheres + lines | Basic | No | No extra setup |
+| Unity Humanoid | Character model (FBX) | Good | Yes (47 bones) | Import model, set Humanoid rig |
+| Meta Avatar | Meta's avatars | Best | Yes + face | Import Meta Avatars SDK |
 
-## Passthrough Mixed Reality
+## Stub Status
 
-Quest 3/3S supports passthrough — see your real room with virtual bodies overlaid:
+These features have the architecture/protocols defined but need platform-specific implementation:
 
-```csharp
-// In your scene's OVRManager:
-OVRManager.instance.isInsightPassthroughEnabled = true;
-
-// Enable passthrough layer:
-var passthroughLayer = gameObject.AddComponent<OVRPassthroughLayer>();
-passthroughLayer.overlayType = OVROverlay.OverlayType.Underlay;
-```
-
-With passthrough, the room mesh is optional — your real room IS the environment.
-
-## Testing
-
-1. Start SexKit on iPhone → Settings → enable Live Stream
-2. Note the iPhone's IP address and port
-3. Build and deploy Quest app
-4. Enter IP:Port in the Quest app's connection field
-5. Bodies should appear and start moving with live data
+| Feature | Status | What's needed |
+|---------|--------|---------------|
+| BLE Haptics | Protocol stubs | Android Bluetooth API via AndroidJavaObject |
+| Meta Avatars | Falls back to Humanoid | Uncomment code when SDK imported |
+| Eye tracking | Quest Pro only | Enable in QuestTrackingMerge for Quest Pro |
+| TTS voice | Debug.Log stub | Android TTS or pre-generated audio clips |
 
 ## Files
 
 | File | Lines | Purpose |
 |------|-------|---------|
+| **Network** | | |
 | SexKitWebSocketClient.cs | ~140 | WebSocket connection + auto-reconnect |
-| LiveFrame.cs | ~110 | Data model matching SexKit JSON schema |
-| SexKitAvatarDriver.cs | ~180 | Three-mode avatar rendering + interpolation |
-| MetaAvatarBridge.cs | ~130 | Meta Avatars SDK joint override bridge |
-| RoomMeshLoader.cs | ~100 | Room mesh + bed placement from calibration |
+| LiveFrame.cs | ~135 | Full data model (45+ fields) |
+| QuestTrackingUpstream.cs | ~90 | Two-way: Quest → iPhone tracking |
+| BonjourDiscovery.cs | ~160 | Auto-discover iPhone via mDNS |
+| **Avatar** | | |
+| SexKitAvatarDriver.cs | ~180 | Three-mode body rendering + interpolation |
+| MetaAvatarBridge.cs | ~230 | Humanoid + Meta Avatar + 47 bone mapping |
+| AIAgentController.cs | ~340 | 4 intelligence modes + eye contact system |
+| QuestTrackingMerge.cs | ~120 | Merge Quest head/hands with SexKit body |
+| HapticDeviceBridge.cs | ~120 | BLE haptic protocols (stub) |
+| **Room** | | |
+| RoomMeshLoader.cs | ~100 | LiDAR mesh + bed placement |
+| PassthroughManager.cs | ~70 | Quest 3 mixed reality |
+| **UI** | | |
+| ConnectionUI.cs | ~140 | Connection screen + Bonjour + status |
 | SexKitHUD.cs | ~120 | Floating spatial HUD |
-| HapticDeviceBridge.cs | ~120 | Bluetooth haptic device protocols |
-| **Total** | **~900** | **Complete Quest app** |
+| SpatialAudioManager.cs | ~70 | 3D positioned voice |
+| **Total** | **~2,200** | **Complete Quest app** |

@@ -78,33 +78,42 @@ public class SexKitWebSocketClient : MonoBehaviour
 
     private async Task ReceiveLoop()
     {
-        var buffer = new byte[8192];
+        var buffer = new byte[16384];  // 16KB to handle large frames
+        var messageBuffer = new System.IO.MemoryStream();
 
         while (_shouldRun && _ws.State == WebSocketState.Open)
         {
             try
             {
-                var result = await _ws.ReceiveAsync(new ArraySegment<byte>(buffer), _cts.Token);
+                messageBuffer.SetLength(0);  // reset for new message
+
+                // Read until EndOfMessage — handles fragmented WebSocket frames
+                WebSocketReceiveResult result;
+                do
+                {
+                    result = await _ws.ReceiveAsync(new ArraySegment<byte>(buffer), _cts.Token);
+                    if (result.MessageType == WebSocketMessageType.Close)
+                        break;
+                    messageBuffer.Write(buffer, 0, result.Count);
+                } while (!result.EndOfMessage);
+
+                if (result.MessageType == WebSocketMessageType.Close)
+                    break;
 
                 if (result.MessageType == WebSocketMessageType.Text)
                 {
-                    string json = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                    string json = Encoding.UTF8.GetString(messageBuffer.GetBuffer(), 0, (int)messageBuffer.Length);
                     var frame = JsonUtility.FromJson<LiveFrame>(json);
                     if (frame != null)
                     {
                         latestFrame = frame;
                         framesReceived++;
 
-                        // Dispatch to main thread
                         UnityMainThreadDispatcher.Enqueue(() =>
                         {
                             OnFrameReceived?.Invoke(frame);
                         });
                     }
-                }
-                else if (result.MessageType == WebSocketMessageType.Close)
-                {
-                    break;
                 }
             }
             catch (Exception e)
