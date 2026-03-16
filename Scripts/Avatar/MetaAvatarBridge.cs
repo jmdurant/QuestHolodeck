@@ -132,30 +132,22 @@ public class MetaAvatarBridge : MonoBehaviour
 
     private void ApplyToMetaAvatar(LiveFrame frame)
     {
-        // Meta Avatars SDK approach:
-        // 1. Create a custom body tracking provider
-        // 2. Override joint transforms from LiveFrame data
-        // 3. Apply via OvrAvatarEntity.SetBodyTracking()
+        // STUB: Meta Avatars SDK not yet imported.
+        // When com.meta.xr.sdk.avatars is added to the project:
         //
-        // When Meta Avatars SDK is imported, uncomment and implement:
+        // 1. Uncomment OvrAvatarEntity fields at top of class
+        // 2. Implement joint override from LiveFrame skeleton data
+        // 3. The joint mapping table above (JointMapping) is ready
         //
-        // if (avatarA != null && frame.skeletonA != null)
-        // {
-        //     var bodyState = new OvrAvatarBodyTrackingState();
-        //     foreach (var joint in SkeletonData.JointNames)
-        //     {
-        //         if (JointMapping.TryGetValue(joint, out string metaJoint))
-        //         {
-        //             Vector3 pos = frame.skeletonA.GetJoint(joint);
-        //             bodyState.SetJointPosition(metaJoint, pos);
-        //         }
-        //     }
-        //     avatarA.SetBodyTracking(bodyState);
-        // }
-        //
-        // Same for avatarB with frame.skeletonB
+        // For now, fall back to Humanoid mode which works immediately.
 
-        Debug.Log("[SexKit] Meta Avatar update — SDK integration point");
+        if (humanoidAnimatorA != null)
+        {
+            ApplyToHumanoid(frame);
+            return;
+        }
+
+        Debug.LogWarning("[SexKit] Meta Avatars SDK not imported — falling back to Humanoid. Import com.meta.xr.sdk.avatars to enable.");
     }
 
     // MARK: - Unity Humanoid Fallback

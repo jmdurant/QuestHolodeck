@@ -74,6 +74,20 @@ public class LiveFrame
     public int planStepTimeRemaining;
     public bool partnerIsInferred;
     public int dataSourceTier;
+
+    // Biometric pacing
+    public string pacingPhase;             // Warmup, Building, Plateau, Edge, Release, Resolution
+    public double pacingTargetRhythm;
+    public double pacingTargetIntensity;
+    public int edgeCount;
+
+    // Verbal cue (spatial audio)
+    public string verbalCueText;
+    public double verbalCueUrgency;
+
+    // Biometrics (extended)
+    public double heartRateVariability;
+    public double respiratoryRate;
 }
 
 [Serializable]

@@ -101,16 +101,17 @@ public class HapticDeviceBridge : MonoBehaviour
 
     private void SendBLE(string command)
     {
-        // TODO: Implement actual BLE connection via AndroidJavaObject
-        // Quest supports BLE via Android Bluetooth API
-        //
-        // var bluetoothAdapter = AndroidJavaClass("android.bluetooth.BluetoothAdapter");
-        // var device = bluetoothAdapter.CallStatic("getDefaultAdapter")
-        //     .Call("getRemoteDevice", deviceAddress);
-        // var gatt = device.Call("connectGatt", ...);
-        // gatt.Call("writeCharacteristic", ...);
+        // STUB: BLE not yet implemented.
+        // Quest supports BLE via Android Bluetooth API (AndroidJavaObject).
+        // Implementation requires:
+        //   1. AndroidManifest.xml: BLUETOOTH, BLUETOOTH_CONNECT permissions
+        //   2. BluetoothAdapter.getDefaultAdapter() → getRemoteDevice(address)
+        //   3. connectGatt() → discover services → write characteristic
+        // Each device protocol (Lovense, Kiiroo, Handy) has documented
+        // BLE characteristics — the command formatting above is correct,
+        // only the transport layer (actual BLE write) is missing.
 
-        Debug.Log($"[BLE] Send: {command} to {deviceAddress}");
+        Debug.Log($"[BLE STUB] Would send: {command} to {deviceAddress}");
     }
 
     void OnDestroy()
