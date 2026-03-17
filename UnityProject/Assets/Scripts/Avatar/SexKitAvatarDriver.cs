@@ -144,7 +144,9 @@ public class SexKitAvatarDriver : MonoBehaviour
         }
 
         // Update bed from latest frame
-        if (SexKitWebSocketClient.Instance.latestFrame != null && bedTransform != null)
+        if (SexKitWebSocketClient.Instance != null
+            && SexKitWebSocketClient.Instance.latestFrame != null
+            && bedTransform != null)
         {
             var frame = SexKitWebSocketClient.Instance.latestFrame;
             if (frame.bedWidth > 0 && frame.bedLength > 0)

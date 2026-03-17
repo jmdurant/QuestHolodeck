@@ -23,6 +23,9 @@ public class JoyBodyController : PartnerBodyController
     private float _rhythmPhase;
     private Vector3 _rhythmBasePosition;
     private bool _defaultStageApplied;
+    private bool _capturedBaseRootPose;
+    private bool _capturedBaseHeadPose;
+    private bool _capturedSpineScale;
 
     protected override void Awake()
     {
@@ -55,6 +58,11 @@ public class JoyBodyController : PartnerBodyController
 
     public override void Tick(float deltaTime)
     {
+        if (partnerRoot == null || headBone == null || spineBone == null)
+        {
+            AutoBind();
+        }
+
         TryApplyDefaultBedSideStage();
         base.Tick(deltaTime);
 
@@ -115,21 +123,54 @@ public class JoyBodyController : PartnerBodyController
         }
 
         partnerRoot = modelRoot;
-        headBone ??= FindBone("DEF-spine.006");
-        chestBone ??= FindBone("spine_fk.003") ?? FindBone("spine_fk.002");
-        spineBone ??= FindBone("spine_fk.002") ?? chestBone;
-        leftHandBone ??= FindBone("DEF-hand.L");
-        rightHandBone ??= FindBone("DEF-hand.R");
+        headBone ??= FindBoneByPath("rig_joy/root/DEF-spine/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-spine.004/DEF-spine.005/DEF-spine.006")
+            ?? FindBone("DEF-spine.006");
+        chestBone ??= FindBoneByPath("rig_joy/root/spine_fk/spine_fk.001/spine_fk.002/spine_fk.003")
+            ?? FindBone("spine_fk.003")
+            ?? FindBone("spine_fk.002");
+        spineBone ??= FindBoneByPath("rig_joy/root/spine_fk/spine_fk.001/spine_fk.002")
+            ?? FindBone("spine_fk.002")
+            ?? chestBone;
+        leftHandBone ??= FindBoneByPath("rig_joy/root/DEF-spine/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-spine.004/DEF-spine.005/DEF-spine.006/DEF-shoulder.L/DEF-upper_arm.L/DEF-upper_arm.L.001/DEF-forearm.L/DEF-forearm.L.001/DEF-hand.L")
+            ?? FindBone("DEF-hand.L");
+        rightHandBone ??= FindBoneByPath("rig_joy/root/DEF-spine/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-spine.004/DEF-spine.005/DEF-spine.006/DEF-shoulder.R/DEF-upper_arm.R/DEF-upper_arm.R.001/DEF-forearm.R/DEF-forearm.R.001/DEF-hand.R")
+            ?? FindBone("DEF-hand.R");
 
         // Cache base scale for breathing
-        if (spineBone != null)
+        if (spineBone != null && !_capturedSpineScale)
         {
             _spineBaseScale = spineBone.localScale;
+            _capturedSpineScale = true;
         }
-        if (partnerRoot != null)
+        if (partnerRoot != null && !_capturedBaseRootPose)
         {
             _rhythmBasePosition = partnerRoot.localPosition;
+            baseRootLocalPosition = partnerRoot.localPosition;
+            baseRootRotation = partnerRoot.localRotation;
+            _capturedBaseRootPose = true;
         }
+        if (headBone != null && !_capturedBaseHeadPose)
+        {
+            baseHeadLocalRotation = headBone.localRotation;
+            headYawReferenceDegrees = 180f;
+            _capturedBaseHeadPose = true;
+
+            var voiceController = FindFirstObjectByType<PartnerVoiceController>();
+            if (voiceController != null)
+            {
+                voiceController.followTarget = headBone;
+            }
+        }
+    }
+
+    private Transform FindBoneByPath(string relativePath)
+    {
+        if (modelRoot == null || string.IsNullOrWhiteSpace(relativePath))
+        {
+            return null;
+        }
+
+        return modelRoot.Find(relativePath);
     }
 
     private void TryApplyDefaultBedSideStage()

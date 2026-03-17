@@ -16,11 +16,13 @@ public class PartnerBodyController : MonoBehaviour, IPartnerBodyController
     public float rotationLerpSpeed = 6f;
 
     [Header("Head Tracking")]
+    public bool enableHeadLook = true;
     public bool followUserHeadByDefault = true;
     public bool clampHeadTracking = true;
     public float maxHeadYawDegrees = 70f;
     public float maxHeadPitchUpDegrees = 28f;
     public float maxHeadPitchDownDegrees = 38f;
+    public float headYawReferenceDegrees;
 
     protected Vector3 baseRootLocalPosition;
     protected Quaternion baseRootRotation;
@@ -154,8 +156,8 @@ public class PartnerBodyController : MonoBehaviour, IPartnerBodyController
             ApplyLookTarget(partnerRoot, lookTarget.Value, deltaTime);
         }
 
-        var effectiveHeadTarget = GetEffectiveHeadLookTarget();
-        if (effectiveHeadTarget.HasValue && headBone != null)
+        var effectiveHeadTarget = enableHeadLook ? GetEffectiveHeadLookTarget() : null;
+        if (enableHeadLook && effectiveHeadTarget.HasValue && headBone != null)
         {
             ApplyHeadLookTarget(headBone, effectiveHeadTarget.Value, deltaTime);
         }
@@ -274,6 +276,7 @@ public class PartnerBodyController : MonoBehaviour, IPartnerBodyController
         var flatDistance = Mathf.Max(0.0001f, new Vector2(baseSpaceDirection.x, baseSpaceDirection.z).magnitude);
         var pitch = -Mathf.Atan2(baseSpaceDirection.y, flatDistance) * Mathf.Rad2Deg;
 
+        yaw = Mathf.DeltaAngle(headYawReferenceDegrees, yaw);
         yaw = Mathf.Clamp(yaw, -maxHeadYawDegrees, maxHeadYawDegrees);
         pitch = Mathf.Clamp(pitch, -maxHeadPitchUpDegrees, maxHeadPitchDownDegrees);
 

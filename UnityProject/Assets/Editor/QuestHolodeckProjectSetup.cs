@@ -29,8 +29,8 @@ public static class QuestHolodeckProjectSetup
     private const string JoyModelPath = "Assets/Models/joy_v1_5_sportswear.fbx";
     private static readonly Vector3 DefaultUserRigPosition = new(-1.5152f, 1.55f, -2.0f);
     private static readonly Vector3 DefaultUserRigRotation = new(0f, 90f, 0f);
-    private static readonly Vector3 DefaultJoyPosition = new(0.42f, 0.72f, -2.45f);
-    private static readonly Vector3 DefaultJoyRotation = new(90f, 180f, 0f);
+    private static readonly Vector3 DefaultJoyPosition = new(-1.265f, 0.02f, -2.0f);
+    private static readonly Vector3 DefaultJoyRotation = new(0f, 90f, 0f);
 
     [MenuItem("Tools/Quest Holodeck/Run Project Setup")]
     public static void RunFromMenu()
@@ -388,6 +388,7 @@ public static class QuestHolodeckProjectSetup
         partnerBodyController.modelRoot = joyModel != null ? joyModel.transform : null;
         partnerBodyController.stageAtBedSideByDefault = false;
         partnerFaceController.modelRoot = joyModel != null ? joyModel.transform : null;
+        BindJoyRigReferences(joyModel != null ? joyModel.transform : null, partnerBodyController, partnerFaceController, partnerVoiceController);
 
         var observerRoot = new GameObject("ObserverSystem");
         var observerController = observerRoot.AddComponent<ObserverCameraController>();
@@ -398,6 +399,23 @@ public static class QuestHolodeckProjectSetup
         observerController.observerEnabled = false;
         observerController.pipEnabled = false;
         observerController.activePreset = ObserverCameraController.ObserverCameraPreset.UserSideTable;
+
+        var modeRoot = new GameObject("ModeSystem");
+        var experienceModeController = modeRoot.AddComponent<ExperienceModeController>();
+        experienceModeController.cameraRig = cameraRig;
+        experienceModeController.mainCamera = cameraRig != null && cameraRig.centerEyeAnchor != null
+            ? cameraRig.centerEyeAnchor.GetComponent<Camera>()
+            : Camera.main;
+        experienceModeController.joyBodyController = partnerBodyController;
+        experienceModeController.avatarDriver = avatarDriver;
+        experienceModeController.roomMeshLoader = roomMeshLoader;
+        experienceModeController.passthroughManager = passthroughManager;
+        experienceModeController.observerCameraController = observerController;
+        experienceModeController.hudCanvas = hudCanvas.GetComponent<Canvas>();
+        experienceModeController.roomEnvironmentRoot = roomRoot;
+        experienceModeController.defaultMode = ExperienceModeController.ExperienceMode.Conversation;
+        experienceModeController.currentMode = ExperienceModeController.ExperienceMode.Conversation;
+        experienceModeController.keepConversationFramed = false;
 
         if (eventSystem != null)
         {
@@ -412,6 +430,7 @@ public static class QuestHolodeckProjectSetup
         SceneManager.MoveGameObjectToScene(hudCanvas, scene);
         SceneManager.MoveGameObjectToScene(audioRoot, scene);
         SceneManager.MoveGameObjectToScene(observerRoot, scene);
+        SceneManager.MoveGameObjectToScene(modeRoot, scene);
 
         if (cameraRig != null)
         {
@@ -532,6 +551,100 @@ public static class QuestHolodeckProjectSetup
         instance.transform.localRotation = Quaternion.Euler(DefaultJoyRotation);
         instance.transform.localScale = Vector3.one;
         return instance;
+    }
+
+    private static void BindJoyRigReferences(
+        Transform joyRoot,
+        JoyBodyController bodyController,
+        JoyFaceController faceController,
+        PartnerVoiceController voiceController)
+    {
+        if (joyRoot == null)
+        {
+            return;
+        }
+
+        if (bodyController != null)
+        {
+            bodyController.partnerRoot = joyRoot;
+            bodyController.headBone = FindJoyBone(joyRoot, "rig_joy/root/DEF-spine/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-spine.004/DEF-spine.005/DEF-spine.006");
+            bodyController.chestBone = FindJoyBone(joyRoot, "rig_joy/root/spine_fk/spine_fk.001/spine_fk.002/spine_fk.003");
+            bodyController.spineBone = FindJoyBone(joyRoot, "rig_joy/root/spine_fk/spine_fk.001/spine_fk.002");
+            bodyController.leftHandBone = FindJoyBone(joyRoot, "rig_joy/root/DEF-spine/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-spine.004/DEF-spine.005/DEF-spine.006/DEF-shoulder.L/DEF-upper_arm.L/DEF-upper_arm.L.001/DEF-forearm.L/DEF-forearm.L.001/DEF-hand.L");
+            bodyController.rightHandBone = FindJoyBone(joyRoot, "rig_joy/root/DEF-spine/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-spine.004/DEF-spine.005/DEF-spine.006/DEF-shoulder.R/DEF-upper_arm.R/DEF-upper_arm.R.001/DEF-forearm.R/DEF-forearm.R.001/DEF-hand.R");
+        }
+
+        if (faceController != null)
+        {
+            faceController.jawBone = FindJoyBone(joyRoot, "rig_joy/root/DEF-spine/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-spine.004/DEF-spine.005/DEF-spine.006/jaw");
+            faceController.leftUpperLid = FindJoyBone(joyRoot, "DEF-upper_eye_lid.002.L");
+            faceController.rightUpperLid = FindJoyBone(joyRoot, "DEF-upper_eye_lid.002.R");
+            faceController.leftLowerLid = FindJoyBone(joyRoot, "DEF-lower_eye_lid.002.L");
+            faceController.rightLowerLid = FindJoyBone(joyRoot, "DEF-lower_eye_lid.002.R");
+            faceController.leftBrow = FindJoyBone(joyRoot, "DEF-brow_upper.002.L");
+            faceController.rightBrow = FindJoyBone(joyRoot, "DEF-brow_upper.002.R");
+            faceController.leftLipCorner = FindJoyBone(joyRoot, "DEF-corner_up_lip.L");
+            faceController.rightLipCorner = FindJoyBone(joyRoot, "DEF-corner_up_lip.R");
+            faceController.visemeAI = FindJoyBone(joyRoot, "AI");
+            faceController.visemeE = FindJoyBone(joyRoot, "E");
+            faceController.visemeFV = FindJoyBone(joyRoot, "FV");
+            faceController.visemeL = FindJoyBone(joyRoot, "L");
+            faceController.visemeMBP = FindJoyBone(joyRoot, "MBP");
+            faceController.visemeO = FindJoyBone(joyRoot, "O");
+            faceController.visemeShCh = FindJoyBone(joyRoot, "ShCh");
+            faceController.visemeU = FindJoyBone(joyRoot, "U");
+            faceController.visemeWQ = FindJoyBone(joyRoot, "WQ");
+            faceController.faceRenderer = FindJoyRenderer(joyRoot, "body");
+            faceController.debugRenderer = faceController.faceRenderer;
+        }
+
+        if (voiceController != null && bodyController != null)
+        {
+            voiceController.followSearchRoot = joyRoot;
+            voiceController.followTarget = bodyController.headBone;
+        }
+    }
+
+    private static Transform FindJoyBone(Transform joyRoot, string nameOrPath)
+    {
+        if (joyRoot == null || string.IsNullOrWhiteSpace(nameOrPath))
+        {
+            return null;
+        }
+
+        var direct = joyRoot.Find(nameOrPath);
+        if (direct != null)
+        {
+            return direct;
+        }
+
+        foreach (var child in joyRoot.GetComponentsInChildren<Transform>(true))
+        {
+            if (child.name == nameOrPath)
+            {
+                return child;
+            }
+        }
+
+        return null;
+    }
+
+    private static SkinnedMeshRenderer FindJoyRenderer(Transform joyRoot, string rendererName)
+    {
+        if (joyRoot == null || string.IsNullOrWhiteSpace(rendererName))
+        {
+            return null;
+        }
+
+        foreach (var renderer in joyRoot.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+        {
+            if (renderer.name == rendererName)
+            {
+                return renderer;
+            }
+        }
+
+        return null;
     }
 
     private static GameObject CreateConnectionCanvas(BonjourDiscovery bonjourDiscovery, OVRCameraRig cameraRig)
