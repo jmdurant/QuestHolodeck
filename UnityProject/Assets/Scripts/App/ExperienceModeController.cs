@@ -26,11 +26,28 @@ public class ExperienceModeController : MonoBehaviour
 
     [Header("Conversation Staging")]
     public bool keepConversationFramed = false;
+    public bool conversationHudVisibleByDefault = false;
+    public bool conversationHudAnchorToJoy = false;
+    public Vector3 conversationHudJoyLocalOffset = new(0.0f, 1.42f, -0.35f);
+    public float conversationHudHeight = 1.42f;
+    public float conversationHudTowardUserDistance = 0.55f;
+    public float conversationHudHorizontalOffset = 0.0f;
+    public bool activityHudFollowHead = true;
     private Transform _eyeTransform;
+    private SexKitHUD _sexKitHud;
+    private RectTransform _hudPanelRect;
+    private bool _conversationHudVisible;
+    private bool _hudCanvasStateCaptured;
+    private RenderMode _hudOriginalRenderMode;
+    private Camera _hudOriginalWorldCamera;
+    private float _hudOriginalPlaneDistance;
+    private bool _hudOriginalOverrideSorting;
+    private int _hudOriginalSortingOrder;
 
     void Start()
     {
         ResolveReferences();
+        _conversationHudVisible = conversationHudVisibleByDefault;
 
         if (applyModeOnStart)
         {
@@ -41,6 +58,22 @@ public class ExperienceModeController : MonoBehaviour
     void LateUpdate()
     {
         ResolveReferences();
+
+        // Enforce visibility each frame in case startup order creates primitive bodies after mode was applied.
+        if (avatarDriver != null)
+        {
+            if (currentMode == ExperienceMode.Conversation)
+                avatarDriver.SetPrimitiveVisibility(false, false);
+            else if (currentMode == ExperienceMode.Activity)
+                avatarDriver.SetPrimitiveVisibility(true, true);
+        }
+
+        // Enforce local Meta avatar renderer visibility per mode to avoid first-person body parts leaking into conversation view.
+        if (currentMode == ExperienceMode.Conversation)
+            SetLocalMetaAvatarVisible(false);
+        else if (currentMode == ExperienceMode.Activity)
+            SetLocalMetaAvatarVisible(true);
+
     }
 
     public void SetMode(ExperienceMode mode, bool snap = false)
@@ -80,7 +113,7 @@ public class ExperienceModeController : MonoBehaviour
 
         if (hudCanvas != null)
         {
-            hudCanvas.gameObject.SetActive(false);
+            hudCanvas.gameObject.SetActive(true);
         }
 
         if (observerCameraController != null)
@@ -94,6 +127,14 @@ public class ExperienceModeController : MonoBehaviour
         {
             avatarDriver.SetPrimitiveVisibility(false, false);
         }
+
+        SetLocalMetaAvatarVisible(false);
+
+        ConfigureHudForCurrentMode();
+        ConfigureConversationHudOnConnectionPlane();
+        if (_sexKitHud != null)
+            _sexKitHud.SetConversationHrOnly(true);
+        ApplyConversationHudVisibility();
 
             if (joyBodyController != null)
             {
@@ -147,6 +188,13 @@ public class ExperienceModeController : MonoBehaviour
             joyBodyController.rotateRootTowardLookTarget = true;
             joyBodyController.followUserHeadByDefault = true;
         }
+
+        SetLocalMetaAvatarVisible(true);
+        RestoreHudCanvasState();
+        ConfigureHudForCurrentMode();
+        if (_sexKitHud != null)
+            _sexKitHud.SetConversationHrOnly(false);
+        ApplyConversationHudVisibility();
     }
 
     private void ResolveReferences()
@@ -165,6 +213,13 @@ public class ExperienceModeController : MonoBehaviour
             hudCanvas = hud != null ? hud.GetComponentInParent<Canvas>() : null;
         }
 
+        _sexKitHud ??= FindFirstObjectByType<SexKitHUD>();
+        if (_hudPanelRect == null && hudCanvas != null)
+        {
+            var panel = hudCanvas.transform.Find("HudPanel");
+            _hudPanelRect = panel != null ? panel.GetComponent<RectTransform>() : null;
+        }
+
         if (roomEnvironmentRoot == null && roomMeshLoader != null)
         {
             roomEnvironmentRoot = roomMeshLoader.gameObject;
@@ -173,6 +228,163 @@ public class ExperienceModeController : MonoBehaviour
         if (cameraRig != null)
         {
             _eyeTransform = cameraRig.centerEyeAnchor != null ? cameraRig.centerEyeAnchor : cameraRig.transform;
+        }
+    }
+
+    public void SetConversationHudAnchorToJoy(bool enabled)
+    {
+        conversationHudAnchorToJoy = enabled;
+        ConfigureHudForCurrentMode();
+    }
+
+    public void SetConversationHudVisible(bool visible)
+    {
+        _conversationHudVisible = visible;
+        ApplyConversationHudVisibility();
+    }
+
+    public void ToggleConversationHudVisible()
+    {
+        SetConversationHudVisible(!_conversationHudVisible);
+    }
+
+    private void ConfigureHudForCurrentMode()
+    {
+        if (_sexKitHud == null)
+            return;
+
+        if (currentMode == ExperienceMode.Conversation && conversationHudAnchorToJoy)
+        {
+            var joyAnchor = ResolveJoyAnchor();
+            if (joyAnchor != null)
+            {
+                _sexKitHud.smoothPlacement = false;
+                _sexKitHud.anchorFaceCamera = true;
+                _sexKitHud.anchorYawOffset = 0f;
+                _sexKitHud.SetAnchorTowardCameraPlacement(
+                    joyAnchor,
+                    conversationHudHeight,
+                    conversationHudTowardUserDistance,
+                    conversationHudHorizontalOffset
+                );
+                return;
+            }
+
+            // Do not fall back to head-follow in conversation mode while waiting for Joy anchor;
+            // that causes visible "zoom/drift" when the anchor appears.
+            _sexKitHud.smoothPlacement = false;
+            _sexKitHud.SetHeadFollowPlacement(false);
+            return;
+        }
+
+        if (currentMode == ExperienceMode.Conversation)
+        {
+            // Stable fallback for conversation: keep HUD directly in front of the user.
+            _sexKitHud.anchorToTarget = false;
+            _sexKitHud.followHead = false;
+            _sexKitHud.smoothPlacement = false;
+            _sexKitHud.distanceFromHead = 0.9f;
+            _sexKitHud.heightOffset = 0.30f;
+            _sexKitHud.horizontalOffset = -0.42f;
+            return;
+        }
+
+        _sexKitHud.smoothPlacement = true;
+        _sexKitHud.anchorFaceCamera = true;
+        _sexKitHud.SetHeadFollowPlacement(activityHudFollowHead);
+    }
+
+    private Transform ResolveJoyAnchor()
+    {
+        if (joyBodyController != null && joyBodyController.modelRoot != null)
+            return joyBodyController.modelRoot;
+
+        var joyRoot = GameObject.Find("AvatarSystem/JoyPartner");
+        return joyRoot != null ? joyRoot.transform : null;
+    }
+
+    private void ConfigureConversationHudOnConnectionPlane()
+    {
+        if (hudCanvas == null)
+            return;
+
+        CaptureHudCanvasStateIfNeeded();
+
+        // Put vitals on the same 2D plane as connection UI.
+        hudCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        hudCanvas.worldCamera = null;
+        hudCanvas.overrideSorting = true;
+        hudCanvas.sortingOrder = 10;
+
+        var hudRect = hudCanvas.GetComponent<RectTransform>();
+        if (hudRect != null)
+        {
+            hudRect.anchorMin = Vector2.zero;
+            hudRect.anchorMax = Vector2.one;
+            hudRect.pivot = new Vector2(0.5f, 0.5f);
+            hudRect.anchoredPosition = Vector2.zero;
+            hudRect.sizeDelta = Vector2.zero;
+        }
+
+        if (_hudPanelRect != null)
+        {
+            _hudPanelRect.anchorMin = new Vector2(0f, 1f);
+            _hudPanelRect.anchorMax = new Vector2(0f, 1f);
+            _hudPanelRect.pivot = new Vector2(0f, 1f);
+            _hudPanelRect.sizeDelta = new Vector2(420f, 120f);
+            _hudPanelRect.anchoredPosition = new Vector2(24f, -24f);
+            _hudPanelRect.localRotation = Quaternion.identity;
+            _hudPanelRect.localScale = Vector3.one;
+        }
+    }
+
+    private void CaptureHudCanvasStateIfNeeded()
+    {
+        if (_hudCanvasStateCaptured || hudCanvas == null)
+            return;
+
+        _hudOriginalRenderMode = hudCanvas.renderMode;
+        _hudOriginalWorldCamera = hudCanvas.worldCamera;
+        _hudOriginalPlaneDistance = hudCanvas.planeDistance;
+        _hudOriginalOverrideSorting = hudCanvas.overrideSorting;
+        _hudOriginalSortingOrder = hudCanvas.sortingOrder;
+        _hudCanvasStateCaptured = true;
+    }
+
+    private void RestoreHudCanvasState()
+    {
+        if (!_hudCanvasStateCaptured || hudCanvas == null)
+            return;
+
+        hudCanvas.renderMode = _hudOriginalRenderMode;
+        hudCanvas.worldCamera = _hudOriginalWorldCamera;
+        hudCanvas.planeDistance = _hudOriginalPlaneDistance;
+        hudCanvas.overrideSorting = _hudOriginalOverrideSorting;
+        hudCanvas.sortingOrder = _hudOriginalSortingOrder;
+    }
+
+    private void ApplyConversationHudVisibility()
+    {
+        if (_hudPanelRect == null)
+            return;
+
+        if (currentMode == ExperienceMode.Conversation)
+            _hudPanelRect.gameObject.SetActive(_conversationHudVisible);
+        else
+            _hudPanelRect.gameObject.SetActive(true);
+    }
+
+    private void SetLocalMetaAvatarVisible(bool visible)
+    {
+        var localMetaRoot = GameObject.Find("AvatarSystem/LocalMetaAvatar");
+        if (localMetaRoot == null)
+            return;
+
+        var renderers = localMetaRoot.GetComponentsInChildren<Renderer>(true);
+        for (var i = 0; i < renderers.Length; i++)
+        {
+            if (renderers[i] != null)
+                renderers[i].enabled = visible;
         }
     }
 }
