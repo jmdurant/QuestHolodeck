@@ -45,6 +45,7 @@ public class RoomMeshLoader : MonoBehaviour
     [Header("Placement")]
     public bool usePassthrough = true;        // Quest 3 passthrough mixed reality
     public bool autoPlaceFromCalibration = true;
+    public bool hideVisualsWhenPassthrough = true;  // don't render cube bed over real bed
 
     private GameObject _roomInstance;
     private GameObject _bedInstance;
@@ -119,6 +120,11 @@ public class RoomMeshLoader : MonoBehaviour
 
     void PlaceBed(float width, float length, float mattressHeight)
     {
+        // Check if MRUK already detected the real bed — skip visual primitives
+        var scene = FindFirstObjectByType<SceneUnderstanding>();
+        bool sceneHasBed = scene != null && scene.bedDetected;
+        bool hideVisuals = usePassthrough && hideVisualsWhenPassthrough && sceneHasBed;
+
         if (bedPrefab != null && _bedInstance == null)
         {
             _bedInstance = Instantiate(bedPrefab);
@@ -131,7 +137,6 @@ public class RoomMeshLoader : MonoBehaviour
         }
         else
         {
-            // Create primitive bed if no prefab
             _bedInstance = GameObject.CreatePrimitive(PrimitiveType.Cube);
             _bedInstance.name = "Bed";
             _bedInstance.transform.localScale = new Vector3(width, 0.05f, length);
@@ -143,6 +148,14 @@ public class RoomMeshLoader : MonoBehaviour
             Destroy(_bedInstance.GetComponent<Collider>());
         }
 
+        // Hide bed visual in passthrough mode — you see your real bed
+        if (hideVisuals)
+        {
+            var renderer = _bedInstance.GetComponent<Renderer>();
+            if (renderer != null) renderer.enabled = false;
+            Debug.Log("[RoomMeshLoader] Passthrough + MRUK active — bed visual hidden (real bed visible)");
+        }
+
         if (avatarDriver != null)
         {
             avatarDriver.bedTransform = _bedInstance.transform;
@@ -150,6 +163,28 @@ public class RoomMeshLoader : MonoBehaviour
 
         PlaceBedsideTables(width, length, mattressHeight);
         PlacePillows(width, length, mattressHeight);
+
+        // Hide tables + pillows in passthrough mode too
+        if (hideVisuals)
+        {
+            SetVisible(_leftBedsideTable, false);
+            SetVisible(_rightBedsideTable, false);
+            SetVisible(_leftPillow, false);
+            SetVisible(_rightPillow, false);
+        }
+    }
+
+    /// Called by SceneUnderstanding when real bed is detected
+    public void PlaceBedFromScene()
+    {
+        PlaceBed(fallbackBedWidth, fallbackBedLength, fallbackMattressHeight);
+    }
+
+    private void SetVisible(GameObject obj, bool visible)
+    {
+        if (obj == null) return;
+        var renderer = obj.GetComponent<Renderer>();
+        if (renderer != null) renderer.enabled = visible;
     }
 
     private void PlaceBedsideTables(float width, float length, float mattressHeight)

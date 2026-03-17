@@ -34,7 +34,12 @@ public class SceneUnderstanding : MonoBehaviour
 
     [Header("NavMesh")]
     public bool bakeNavMesh = true;
-    public NavMeshSurface navMeshSurface;  // assign in inspector or auto-created
+    public NavMeshSurface navMeshSurface;
+
+    [Header("Bed Surface")]
+    public Transform bedSurfaceTransform;   // invisible plane at mattress height for JOY placement
+    public bool bedSurfaceReady = false;
+    public float bedSurfaceY = 0.6f;       // mattress top Y in world space
 
     [Header("Debug")]
     public bool showDebugVisuals = false;
@@ -168,6 +173,9 @@ public class SceneUnderstanding : MonoBehaviour
                 );
             }
 
+            // Create invisible bed surface for JOY placement
+            CreateBedSurface();
+
             if (showDebugVisuals)
             {
                 CreateDebugBedVisual();
@@ -177,6 +185,38 @@ public class SceneUnderstanding : MonoBehaviour
         {
             Debug.Log("[SceneUnderstanding] No bed detected — using fallback placement");
         }
+    }
+
+    private void CreateBedSurface()
+    {
+        // Invisible plane at the top of the mattress — JOY lies on this
+        if (bedSurfaceTransform == null)
+        {
+            var surfaceObj = new GameObject("BedSurface");
+            bedSurfaceTransform = surfaceObj.transform;
+        }
+
+        bedSurfaceY = bedPosition.y + bedSize.y * 0.5f;  // top of volume bounds
+
+        bedSurfaceTransform.position = new Vector3(bedPosition.x, bedSurfaceY, bedPosition.z);
+        bedSurfaceTransform.rotation = bedRotation;
+        bedSurfaceTransform.localScale = new Vector3(
+            bedSize.x > 0 ? bedSize.x : 1.93f,
+            0.01f,
+            bedSize.z > 0 ? bedSize.z : 2.03f
+        );
+
+        // Add collider so NavMesh knows the bed surface exists
+        // but don't make it an obstacle — JOY needs to get ON it
+        var collider = bedSurfaceTransform.gameObject.GetComponent<BoxCollider>();
+        if (collider == null)
+        {
+            collider = bedSurfaceTransform.gameObject.AddComponent<BoxCollider>();
+            collider.isTrigger = true;  // trigger, not solid — JOY can move onto it
+        }
+
+        bedSurfaceReady = true;
+        Debug.Log($"[SceneUnderstanding] Bed surface created at Y={bedSurfaceY:F2}");
     }
 
     // MARK: - NavMesh
@@ -276,6 +316,113 @@ public class SceneUnderstanding : MonoBehaviour
     {
         if (!bedDetected) return null;
         return bedPosition + Vector3.up * (bedSize.y * 0.5f);
+    }
+
+    /// Get a position ON the bed for a given sex position.
+    /// Returns world position at mattress surface height.
+    /// The offset is relative to bed center, rotated to match bed orientation.
+    public Vector3? GetOnBedPosition(string position, bool isPartner)
+    {
+        if (!bedDetected || bedSurfaceTransform == null) return null;
+
+        // Base position: center of bed at mattress surface
+        var center = new Vector3(bedPosition.x, bedSurfaceY, bedPosition.z);
+        var right = bedRotation * Vector3.right;
+        var forward = bedRotation * Vector3.forward;
+
+        // Offset from center based on position + role
+        // Partner (JOY) positions relative to bed center
+        Vector3 offset = Vector3.zero;
+        float heightOffset = 0f;  // above mattress surface
+
+        var lower = (position ?? "").ToLowerInvariant();
+
+        if (lower.Contains("missionary"))
+        {
+            // Lying on back, centered, slightly toward head of bed
+            offset = forward * 0.2f;
+            heightOffset = 0.05f;  // just above mattress
+        }
+        else if (lower.Contains("cowgirl"))
+        {
+            if (isPartner)
+            {
+                // Partner on top — elevated above bed center
+                offset = forward * 0.1f;
+                heightOffset = 0.4f;  // sitting height above mattress
+            }
+            else
+            {
+                offset = forward * 0.1f;
+                heightOffset = 0.05f;
+            }
+        }
+        else if (lower.Contains("doggy"))
+        {
+            // On hands and knees — centered
+            offset = -forward * 0.1f;
+            heightOffset = 0.3f;  // knees + torso height
+        }
+        else if (lower.Contains("spooning"))
+        {
+            // Side-lying — offset to one side
+            offset = (isPartner ? -right : right) * 0.2f + forward * 0.2f;
+            heightOffset = 0.1f;
+        }
+        else if (lower.Contains("prone"))
+        {
+            offset = forward * 0.1f;
+            heightOffset = 0.05f;  // lying flat
+        }
+        else if (lower.Contains("69"))
+        {
+            offset = (isPartner ? -forward : forward) * 0.3f;
+            heightOffset = 0.05f;
+        }
+        else if (lower.Contains("oral"))
+        {
+            if (isPartner)
+            {
+                offset = -forward * 0.3f;  // at foot of bed area
+                heightOffset = 0.0f;  // kneeling at bed edge
+            }
+            else
+            {
+                offset = forward * 0.1f;
+                heightOffset = 0.05f;  // lying/sitting on bed
+            }
+        }
+        else if (lower.Contains("lotus") || lower.Contains("seated"))
+        {
+            offset = forward * 0.1f;
+            heightOffset = 0.25f;  // sitting on bed
+        }
+        else
+        {
+            // Default: center of bed, slightly above surface
+            heightOffset = 0.05f;
+        }
+
+        return center + offset + Vector3.up * heightOffset;
+    }
+
+    /// Get the bed edge position (for sitting on the edge, getting on/off)
+    public Vector3? GetBedEdgePosition(string side)
+    {
+        if (!bedDetected) return null;
+
+        var right = bedRotation * Vector3.right;
+        var forward = bedRotation * Vector3.forward;
+        var center = new Vector3(bedPosition.x, bedSurfaceY, bedPosition.z);
+
+        return side.ToLowerInvariant() switch
+        {
+            "left" => center - right * (bedSize.x * 0.5f) + Vector3.down * 0.1f,
+            "right" => center + right * (bedSize.x * 0.5f) + Vector3.down * 0.1f,
+            "foot" => center - forward * (bedSize.z * 0.5f) + Vector3.down * 0.1f,
+            "head" => center + forward * (bedSize.z * 0.5f) + Vector3.down * 0.1f,
+            _ => center
+        };
     }
 
     // MARK: - Debug
