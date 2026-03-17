@@ -3,6 +3,7 @@
 # Unity local cache/state
 UnityProject/Library/
 UnityProject/Logs/
+UnityProject/Temp/
 UnityProject/UserSettings/
 UnityProject/Builds/
 UnityProject/.utmp
@@ -10,6 +11,8 @@ UnityProject/.utmp
 # Unity/editor generated user settings
 UnityProject/Assets/CompositionLayers/
 UnityProject/Assets/CompositionLayers.meta
+UnityProject/Assets/IdaFaber/
+UnityProject/Assets/IdaFaber.meta
 
 # Meta Avatar runtime/sample assets are installed locally as part of setup
 UnityProject/Assets/Oculus/Avatar2/

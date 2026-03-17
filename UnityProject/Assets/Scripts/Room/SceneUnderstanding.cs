@@ -14,6 +14,7 @@
 
 using UnityEngine;
 using UnityEngine.AI;
+using Unity.AI.Navigation;
 using Meta.XR.MRUtilityKit;
 
 public class SceneUnderstanding : MonoBehaviour
@@ -100,7 +101,9 @@ public class SceneUnderstanding : MonoBehaviour
 
     private void DetectFloor()
     {
-        _floorAnchor = _currentRoom.FloorAnchor;
+        _floorAnchor = _currentRoom.FloorAnchors != null && _currentRoom.FloorAnchors.Count > 0
+            ? _currentRoom.FloorAnchors[0]
+            : null;
         if (_floorAnchor != null)
         {
             floorY = _floorAnchor.transform.position.y;
@@ -140,11 +143,11 @@ public class SceneUnderstanding : MonoBehaviour
             bedRotation = _bedAnchor.transform.rotation;
 
             // VolumeBounds gives us the 3D bounding box
-            var bounds = _bedAnchor.VolumeBounds;
+            var bounds = _bedAnchor.VolumeBounds ?? new Bounds(_bedAnchor.transform.position, Vector3.zero);
             bedSize = bounds.size;  // x = width, y = height (mattress), z = length
 
             // PlaneRect gives the top surface dimensions
-            var planeRect = _bedAnchor.PlaneRect;
+            var planeRect = _bedAnchor.PlaneRect ?? new Rect(0f, 0f, bedSize.x, bedSize.z);
 
             Debug.Log($"[SceneUnderstanding] Bed detected at {bedPosition}, size={bedSize}, rotation={bedRotation.eulerAngles}");
 
@@ -268,20 +271,26 @@ public class SceneUnderstanding : MonoBehaviour
 
             // Add box colliders to furniture so NavMesh carves around them
             var bounds = anchor.VolumeBounds;
-            if (bounds.size.sqrMagnitude > 0.01f)
+            if (!bounds.HasValue)
+            {
+                continue;
+            }
+
+            var volumeBounds = bounds.Value;
+            if (volumeBounds.size.sqrMagnitude > 0.01f)
             {
                 var collider = anchor.gameObject.GetComponent<BoxCollider>();
                 if (collider == null)
                 {
                     collider = anchor.gameObject.AddComponent<BoxCollider>();
-                    collider.size = bounds.size;
-                    collider.center = bounds.center;
+                    collider.size = volumeBounds.size;
+                    collider.center = volumeBounds.center;
 
                     // Mark as NavMesh obstacle
                     var obstacle = anchor.gameObject.AddComponent<NavMeshObstacle>();
                     obstacle.shape = NavMeshObstacleShape.Box;
-                    obstacle.size = bounds.size;
-                    obstacle.center = bounds.center;
+                    obstacle.size = volumeBounds.size;
+                    obstacle.center = volumeBounds.center;
                     obstacle.carving = true;
                 }
             }
