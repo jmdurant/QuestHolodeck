@@ -138,6 +138,7 @@ public class ControlEnvironment
     public string musicAction;      // play, pause, skip, set_playlist
     public string musicPlaylist;
     public float musicVolume;       // 0-1
+    public string skybox;           // "passthrough", "mountain", "beach", "hotel", "cabin", "cave", "void"
 }
 
 [Serializable]

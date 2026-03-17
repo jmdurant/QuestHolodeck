@@ -157,6 +157,7 @@ public class PartnerDirector : MonoBehaviour, IPartnerDirector
         ApplyBreathing(frame);
         ApplyReaction(frame);
         ApplyAdjustMode(frame);
+        ApplyEnvironment(frame);
     }
 
     private void ApplySpeech(ControlFrame frame)
@@ -753,6 +754,19 @@ public class PartnerDirector : MonoBehaviour, IPartnerDirector
         if (bodyController is JoyBodyController joyBody)
         {
             joyBody.SetRhythm(runtimeState.physicalRhythmHz, runtimeState.physicalIntensity, runtimeState.physicalAmplitude);
+        }
+    }
+
+    // ── Environment ──
+
+    private void ApplyEnvironment(ControlFrame frame)
+    {
+        if (frame.environment == null) return;
+
+        // Skybox / environment switch
+        if (!string.IsNullOrWhiteSpace(frame.environment.skybox) && EnvironmentManager.Instance != null)
+        {
+            EnvironmentManager.Instance.SetEnvironmentFromAgent(frame.environment.skybox);
         }
     }
 
