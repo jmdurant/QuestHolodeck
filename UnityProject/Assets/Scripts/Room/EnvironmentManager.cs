@@ -235,48 +235,66 @@ public class EnvironmentManager : MonoBehaviour
         {
             new SkyboxPreset
             {
-                name = "mountain",
-                displayName = "Mountain Night",
-                description = "Starry sky, mountain peaks, warm campfire glow",
-                ambientColor = new Color(0.15f, 0.15f, 0.25f),
-                ambientIntensity = 0.4f,
-                material = LoadSkyboxMaterial("Skybox_Mountain")
-            },
-            new SkyboxPreset
-            {
                 name = "beach",
                 displayName = "Beach Sunset",
-                description = "Ocean horizon, golden sunset, palm trees",
+                description = "Golden sands, ocean waves, warm sunset glow",
                 ambientColor = new Color(0.6f, 0.4f, 0.3f),
                 ambientIntensity = 0.7f,
                 material = LoadSkyboxMaterial("Skybox_Beach")
             },
             new SkyboxPreset
             {
-                name = "hotel",
-                displayName = "Luxury Suite",
-                description = "Floor-to-ceiling windows, city lights, modern",
-                ambientColor = new Color(0.35f, 0.35f, 0.4f),
-                ambientIntensity = 0.5f,
-                material = LoadSkyboxMaterial("Skybox_Hotel")
+                name = "aurora",
+                displayName = "Northern Lights",
+                description = "Mountain lake, aurora borealis, starry sky",
+                ambientColor = new Color(0.15f, 0.25f, 0.2f),
+                ambientIntensity = 0.4f,
+                material = LoadSkyboxMaterial("Skybox_Aurora")
             },
             new SkyboxPreset
             {
-                name = "cabin",
-                displayName = "Mountain Cabin",
-                description = "Warm wood, fireplace glow, snow outside",
-                ambientColor = new Color(0.5f, 0.35f, 0.2f),
-                ambientIntensity = 0.5f,
-                material = LoadSkyboxMaterial("Skybox_Cabin")
+                name = "tuscany",
+                displayName = "Tuscan Hillside",
+                description = "Italian village, rolling hills, golden hour",
+                ambientColor = new Color(0.5f, 0.4f, 0.25f),
+                ambientIntensity = 0.6f,
+                material = LoadSkyboxMaterial("Skybox_Tuscany")
             },
             new SkyboxPreset
             {
-                name = "cave",
-                displayName = "Candlelit Cave",
-                description = "Warm stone walls, flickering firelight, intimate",
-                ambientColor = new Color(0.4f, 0.25f, 0.15f),
-                ambientIntensity = 0.35f,
-                material = LoadSkyboxMaterial("Skybox_Cave")
+                name = "clouds",
+                displayName = "Above the Clouds",
+                description = "Floating above cloudscape, ethereal golden sunset",
+                ambientColor = new Color(0.5f, 0.45f, 0.35f),
+                ambientIntensity = 0.65f,
+                material = LoadSkyboxMaterial("Skybox_Clouds")
+            },
+            new SkyboxPreset
+            {
+                name = "space",
+                displayName = "Deep Space",
+                description = "Cosmic nebula, stars, dark and intense",
+                ambientColor = new Color(0.12f, 0.08f, 0.18f),
+                ambientIntensity = 0.3f,
+                material = LoadSkyboxMaterial("Skybox_Space")
+            },
+            new SkyboxPreset
+            {
+                name = "meadow",
+                displayName = "Iceland Meadow",
+                description = "Wildflowers, mountain pond, peaceful sunset",
+                ambientColor = new Color(0.4f, 0.45f, 0.3f),
+                ambientIntensity = 0.6f,
+                material = LoadSkyboxMaterial("Skybox_Meadow")
+            },
+            new SkyboxPreset
+            {
+                name = "city",
+                displayName = "City Evening",
+                description = "Rainy European cobblestone street, warm lamp light",
+                ambientColor = new Color(0.3f, 0.25f, 0.2f),
+                ambientIntensity = 0.4f,
+                material = LoadSkyboxMaterial("Skybox_CityEvening")
             },
         };
     }
