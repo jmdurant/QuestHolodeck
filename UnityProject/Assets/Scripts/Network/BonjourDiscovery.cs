@@ -27,7 +27,9 @@ public class BonjourDiscovery : MonoBehaviour
     public string discoveredAddress = "";
 
     // Events
+#pragma warning disable CS0067
     public event Action<string, int> OnServiceFound;  // host, port
+#pragma warning restore CS0067
     public event Action OnScanTimeout;
 
     private float _scanStartTime;

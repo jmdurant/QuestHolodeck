@@ -123,14 +123,14 @@ public class SceneUnderstanding : MonoBehaviour
     {
         foreach (var anchor in _currentRoom.Anchors)
         {
-            if (anchor.HasLabel(MRUKAnchor.SceneLabels.BED))
+            if (anchor.Label == MRUKAnchor.SceneLabels.BED)
             {
                 _bedAnchor = anchor;
                 break;
             }
 
             // Fall back to COUCH if no bed label (user might have labeled it as couch)
-            if (anchor.HasLabel(MRUKAnchor.SceneLabels.COUCH) && _bedAnchor == null)
+            if (anchor.Label == MRUKAnchor.SceneLabels.COUCH && _bedAnchor == null)
             {
                 _bedAnchor = anchor;
             }
@@ -262,9 +262,9 @@ public class SceneUnderstanding : MonoBehaviour
         foreach (var anchor in _currentRoom.Anchors)
         {
             // Skip floor/ceiling/walls — those are surfaces, not obstacles
-            if (anchor.HasLabel(MRUKAnchor.SceneLabels.FLOOR) ||
-                anchor.HasLabel(MRUKAnchor.SceneLabels.CEILING) ||
-                anchor.HasLabel(MRUKAnchor.SceneLabels.WALL_FACE))
+            if (anchor.Label == MRUKAnchor.SceneLabels.FLOOR ||
+                anchor.Label == MRUKAnchor.SceneLabels.CEILING ||
+                anchor.Label == MRUKAnchor.SceneLabels.WALL_FACE)
             {
                 continue;
             }

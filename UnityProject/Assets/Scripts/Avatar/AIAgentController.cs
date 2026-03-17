@@ -8,7 +8,6 @@
 using UnityEngine;
 using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
 
 public class AIAgentController : MonoBehaviour
 {
@@ -42,7 +41,6 @@ public class AIAgentController : MonoBehaviour
     private Dictionary<string, Vector3> _agentJoints = new();
     private float _rhythmPhase = 0;
     private float _lastAIUpdate = 0;
-    private string _lastAIDirective = "";
 
     // Position complements (matches SexKit's PartnerInference)
     private static readonly Dictionary<string, PositionComplement> Complements = new()
@@ -128,21 +126,21 @@ public class AIAgentController : MonoBehaviour
         if (Time.time - _lastAIUpdate > aiUpdateInterval)
         {
             _lastAIUpdate = Time.time;
-            _ = RequestAIDecision(frame);
+            RequestAIDecision(frame);
         }
 
         // Between AI updates, use rule-based for smooth movement
         UpdateRuleBased(frame);
     }
 
-    async Task RequestAIDecision(LiveFrame frame)
+    void RequestAIDecision(LiveFrame frame)
     {
         if (string.IsNullOrEmpty(aiEndpoint)) return;
 
         try
         {
             // Send current state to AI
-            string json = JsonUtility.ToJson(frame);
+            _ = JsonUtility.ToJson(frame);
             // POST to AI endpoint, get back decision
             // Decision could include: position change, verbal response, gesture
             // For now, log the intent
@@ -183,7 +181,6 @@ public class AIAgentController : MonoBehaviour
 
     private Vector3 _agentLookTarget;
     private float _lastEyeContactBreak = 0;
-    private bool _isHoldingEyeContact = true;
     private GazeBehavior _currentGazeBehavior = GazeBehavior.SoftContact;
 
     enum GazeBehavior

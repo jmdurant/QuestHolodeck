@@ -33,10 +33,10 @@ public class PassthroughManager : MonoBehaviour
             ovrManager.isInsightPassthroughEnabled = true;
         }
 
-        // Add passthrough layer as underlay (renders behind everything)
+        // Add passthrough layer.
+        // Flexible layering fields (overlayType/compositionDepth) are deprecated in current OVR SDK,
+        // so rely on default background passthrough behavior.
         _passthroughLayer = gameObject.AddComponent<OVRPassthroughLayer>();
-        _passthroughLayer.overlayType = OVROverlay.OverlayType.Underlay;
-        _passthroughLayer.compositionDepth = 0;
 
         // Set camera to transparent so passthrough shows through
         if (cameraRig != null)

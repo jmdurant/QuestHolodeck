@@ -50,9 +50,6 @@ public class SuggestConfirmationHandler : MonoBehaviour
     private bool _pitchGoingDown;
     private bool _yawGoingRight;
 
-    // Voice tracking
-    private bool _listeningForConfirmation;
-
     void Awake()
     {
         if (Instance == null) Instance = this;
@@ -87,7 +84,6 @@ public class SuggestConfirmationHandler : MonoBehaviour
         }
 
         // Listen for voice confirmation
-        _listeningForConfirmation = true;
         if (speechCapture != null)
         {
             speechCapture.OnSpeechRecognized += HandleSpeechDuringConfirmation;
@@ -224,7 +220,6 @@ public class SuggestConfirmationHandler : MonoBehaviour
     private void Cleanup()
     {
         isWaitingForResponse = false;
-        _listeningForConfirmation = false;
         pendingAction = "";
         timeRemaining = 0;
         _nodCount = 0;
