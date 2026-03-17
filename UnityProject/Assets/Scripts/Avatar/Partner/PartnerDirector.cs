@@ -10,6 +10,7 @@ public class PartnerDirector : MonoBehaviour, IPartnerDirector
     public QuestTrackingMerge trackingMerge;
     public SexKitAvatarDriver avatarDriver;
     public SuggestConfirmationHandler confirmationHandler;
+    public SceneUnderstanding sceneUnderstanding;
 
     [Header("Behavior")]
     public float defaultBlendTime = 0.35f;
@@ -32,6 +33,7 @@ public class PartnerDirector : MonoBehaviour, IPartnerDirector
         trackingMerge ??= FindFirstObjectByType<QuestTrackingMerge>();
         avatarDriver ??= GetComponent<SexKitAvatarDriver>();
         confirmationHandler ??= FindFirstObjectByType<SuggestConfirmationHandler>();
+        sceneUnderstanding ??= FindFirstObjectByType<SceneUnderstanding>();
 
         if (commandBus != null)
         {
@@ -524,25 +526,34 @@ public class PartnerDirector : MonoBehaviour, IPartnerDirector
                 _ => 1.0f
             };
 
-            // For now, lerp toward target. NavMesh will replace this.
             if (bodyController.partnerRoot != null)
             {
-                var direction = target.Value - bodyController.partnerRoot.position;
-                if (direction.magnitude > 0.05f)
+                // Try NavMeshAgent first (real pathfinding around furniture)
+                var agent = bodyController.partnerRoot.GetComponent<UnityEngine.AI.NavMeshAgent>();
+                if (agent != null && agent.isOnNavMesh)
                 {
-                    bodyController.partnerRoot.position = Vector3.MoveTowards(
-                        bodyController.partnerRoot.position,
-                        target.Value,
-                        Time.deltaTime * speed);
-
-                    // Face direction of travel
-                    if (direction.sqrMagnitude > 0.01f)
+                    agent.speed = speed;
+                    agent.SetDestination(target.Value);
+                }
+                else
+                {
+                    // Fallback: lerp toward target (no NavMesh baked)
+                    var direction = target.Value - bodyController.partnerRoot.position;
+                    if (direction.magnitude > 0.05f)
                     {
-                        var moveRotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
-                        bodyController.partnerRoot.rotation = Quaternion.Slerp(
-                            bodyController.partnerRoot.rotation,
-                            moveRotation,
-                            Time.deltaTime * 4f);
+                        bodyController.partnerRoot.position = Vector3.MoveTowards(
+                            bodyController.partnerRoot.position,
+                            target.Value,
+                            Time.deltaTime * speed);
+
+                        if (direction.sqrMagnitude > 0.01f)
+                        {
+                            var moveRotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
+                            bodyController.partnerRoot.rotation = Quaternion.Slerp(
+                                bodyController.partnerRoot.rotation,
+                                moveRotation,
+                                Time.deltaTime * 4f);
+                        }
                     }
                 }
             }
@@ -576,9 +587,39 @@ public class PartnerDirector : MonoBehaviour, IPartnerDirector
 
     private Vector3? ResolveNamedLocation(string location)
     {
+        var scene = sceneUnderstanding;
+        var lower = location.ToLowerInvariant();
+
+        // Prefer scene-detected positions (real room awareness)
+        if (scene != null && scene.bedDetected)
+        {
+            switch (lower)
+            {
+                case "bed":
+                    return scene.GetBedSurfaceCenter();
+                case "beside_user":
+                    return trackingMerge != null && trackingMerge.HeadPosition != Vector3.zero
+                        ? trackingMerge.HeadPosition + Vector3.left * 0.5f
+                        : scene.GetBedSidePosition(true);
+                case "user_side_of_bed":
+                    return scene.GetBedSidePosition(true);
+                case "partner_side_of_bed":
+                    return scene.GetBedSidePosition(false);
+                case "foot_of_bed":
+                    return scene.GetFootOfBedPosition();
+                case "doorway":
+                    return scene.GetFootOfBedPosition() + Vector3.back * 2.0f;
+                case "standing_near":
+                    return trackingMerge != null
+                        ? trackingMerge.HeadPosition + Vector3.back * 1.0f
+                        : scene.GetBedSidePosition(false);
+            }
+        }
+
+        // Fallback to avatar driver staging (no MRUK scene data)
         if (avatarDriver == null) return null;
 
-        return location.ToLowerInvariant() switch
+        return lower switch
         {
             "bed" => avatarDriver.bedTransform != null ? avatarDriver.bedTransform.position : null,
             "beside_user" => trackingMerge != null && trackingMerge.HeadPosition != Vector3.zero
