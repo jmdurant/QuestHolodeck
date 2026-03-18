@@ -211,6 +211,17 @@ public class PartnerBodyController : MonoBehaviour, IPartnerBodyController
         initialized = true;
     }
 
+    /// Unity serializes destroyed object references as non-null (the "fake null" problem).
+    /// C# null-coalescing operators (??=) see them as non-null and skip assignment.
+    /// Call this to clear any destroyed references so ??= works correctly.
+    protected void ClearDestroyedBoneReferences()
+    {
+        if (headBone == null) headBone = null;
+        if (chestBone == null) chestBone = null;
+        if (leftHandBone == null) leftHandBone = null;
+        if (rightHandBone == null) rightHandBone = null;
+    }
+
     protected virtual void ResolvePartnerRoot()
     {
         if (partnerRoot == null && avatarDriver != null)

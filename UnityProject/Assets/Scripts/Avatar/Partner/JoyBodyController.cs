@@ -5,13 +5,14 @@ public class JoyBodyController : PartnerBodyController
     [Header("Joy Model")]
     public Transform modelRoot;
     public string modelRootName = "JoyPartner";
+    public float conversationDistance = 0.8f;
     public bool stageAtBedSideByDefault = true;
     public bool defaultHeadTurnTowardUser = true;
     public float defaultUserLookHeight = 1.35f;
 
     [Header("Breathing")]
-    public Transform spineBone;       // spine_fk.002 or similar — chest expansion
-    public float breathingRate = 14f; // breaths per minute
+    public Transform spineBone;
+    public float breathingRate = 14f;
     public float breathingDepth = 0.3f;
     private Vector3 _spineBaseScale;
     private float _breathPhase;
@@ -63,13 +64,12 @@ public class JoyBodyController : PartnerBodyController
             AutoBind();
         }
 
-        TryApplyDefaultBedSideStage();
+        TryApplyDefaultStage();
         base.Tick(deltaTime);
 
-        // Breathing — chest bone scale oscillation
         if (spineBone != null && breathingRate > 0)
         {
-            float breathCycleHz = breathingRate / 60f;  // breaths/sec
+            float breathCycleHz = breathingRate / 60f;
             _breathPhase += deltaTime * breathCycleHz * Mathf.PI * 2f;
             float breathScale = 1f + Mathf.Sin(_breathPhase) * breathingDepth * 0.03f;
             spineBone.localScale = Vector3.Lerp(
@@ -78,7 +78,6 @@ public class JoyBodyController : PartnerBodyController
                 deltaTime * 8f);
         }
 
-        // Rhythm — sinusoidal body oscillation for physical mode
         if (partnerRoot != null && rhythmHz > 0.1f && rhythmIntensity > 0.01f)
         {
             _rhythmPhase += deltaTime * rhythmHz * Mathf.PI * 2f;
@@ -91,14 +90,12 @@ public class JoyBodyController : PartnerBodyController
         }
     }
 
-    /// Update breathing parameters from PartnerDirector runtime state
     public void SetBreathing(float rate, float depth)
     {
         breathingRate = rate;
         breathingDepth = Mathf.Clamp01(depth);
     }
 
-    /// Update rhythm parameters from ControlFrame physical data
     public void SetRhythm(float hz, float intensity, float amplitude)
     {
         rhythmHz = hz;
@@ -106,42 +103,37 @@ public class JoyBodyController : PartnerBodyController
         rhythmAmplitude = Mathf.Clamp01(amplitude);
     }
 
+    // --- Private ---
+
     private void AutoBind()
     {
         if (modelRoot == null)
         {
             var directModel = transform.Find(modelRootName);
             if (directModel != null)
-            {
                 modelRoot = directModel;
-            }
         }
 
         if (modelRoot == null)
-        {
             return;
-        }
 
         partnerRoot = modelRoot;
+        ClearDestroyedBoneReferences();
+        if (spineBone == null) spineBone = null; // spineBone is on this class, not base
+
         headBone ??= FindBoneByPath("rig_joy/root/DEF-spine/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-spine.004/DEF-spine.005/DEF-spine.006")
             ?? FindBone("DEF-spine.006");
-        chestBone ??= FindBoneByPath("rig_joy/root/spine_fk/spine_fk.001/spine_fk.002/spine_fk.003")
-            ?? FindBone("spine_fk.003")
-            ?? FindBone("spine_fk.002");
-        spineBone ??= FindBoneByPath("rig_joy/root/spine_fk/spine_fk.001/spine_fk.002")
-            ?? FindBone("spine_fk.002")
-            ?? chestBone;
-        leftHandBone ??= FindBoneByPath("rig_joy/root/DEF-spine/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-spine.004/DEF-spine.005/DEF-spine.006/DEF-shoulder.L/DEF-upper_arm.L/DEF-upper_arm.L.001/DEF-forearm.L/DEF-forearm.L.001/DEF-hand.L")
-            ?? FindBone("DEF-hand.L");
-        rightHandBone ??= FindBoneByPath("rig_joy/root/DEF-spine/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-spine.004/DEF-spine.005/DEF-spine.006/DEF-shoulder.R/DEF-upper_arm.R/DEF-upper_arm.R.001/DEF-forearm.R/DEF-forearm.R.001/DEF-hand.R")
-            ?? FindBone("DEF-hand.R");
+        chestBone ??= FindBone("spine_fk.003") ?? FindBone("spine_fk.002");
+        spineBone ??= FindBone("spine_fk.002") ?? chestBone;
+        leftHandBone ??= FindBone("DEF-hand.L");
+        rightHandBone ??= FindBone("DEF-hand.R");
 
-        // Cache base scale for breathing
         if (spineBone != null && !_capturedSpineScale)
         {
             _spineBaseScale = spineBone.localScale;
             _capturedSpineScale = true;
         }
+
         if (partnerRoot != null && !_capturedBaseRootPose)
         {
             _rhythmBasePosition = partnerRoot.localPosition;
@@ -149,71 +141,106 @@ public class JoyBodyController : PartnerBodyController
             baseRootRotation = partnerRoot.localRotation;
             _capturedBaseRootPose = true;
         }
+
         if (headBone != null && !_capturedBaseHeadPose)
         {
             baseHeadLocalRotation = headBone.localRotation;
-            headYawReferenceDegrees = 180f;
+            // Head bone local forward aligns with the model's face direction at rest.
+            // Reference of 0 means "straight ahead in bone-local space = toward camera".
+            headYawReferenceDegrees = 0f;
             _capturedBaseHeadPose = true;
 
             var voiceController = FindFirstObjectByType<PartnerVoiceController>();
             if (voiceController != null)
-            {
                 voiceController.followTarget = headBone;
-            }
         }
+    }
+
+    /// Place Joy in front of the user on first frame. Activity mode uses bed-side anchor
+    /// from the avatar driver; conversation/training mode uses the camera position.
+    private void TryApplyDefaultStage()
+    {
+        if (_defaultStageApplied || partnerRoot == null)
+            return;
+
+        if (stageAtBedSideByDefault)
+        {
+            TryApplyBedSideStage();
+            return;
+        }
+
+        TryApplyConversationStage();
+    }
+
+    private void TryApplyBedSideStage()
+    {
+        if (avatarDriver == null)
+            return;
+
+        if (!avatarDriver.TryGetDefaultStandingAnchor(false, out var position, out var rotation))
+            return;
+
+        partnerRoot.position = position;
+        partnerRoot.rotation = rotation;
+        CaptureBasePose();
+        rotateRootTowardLookTarget = false;
+
+        if (defaultHeadTurnTowardUser && avatarDriver.TryGetDefaultStandingAnchor(true, out var userPosition, out _))
+            SetHeadLookTarget(userPosition + Vector3.up * defaultUserLookHeight);
+
+        _defaultStageApplied = true;
+    }
+
+    private void TryApplyConversationStage()
+    {
+        var cam = Camera.main;
+        if (cam == null)
+            return;
+
+        // Place Joy at conversation distance in front of the camera, on the floor, facing the user.
+        // Model faces +Z at identity (Blender FBX with applied rotations + standard axis conversion).
+        var camPos = cam.transform.position;
+        var flatFwd = Vector3.ProjectOnPlane(cam.transform.forward, Vector3.up).normalized;
+        if (flatFwd.sqrMagnitude < 0.01f)
+            flatFwd = Vector3.forward;
+
+        var feetPos = camPos + flatFwd * conversationDistance;
+        feetPos.y = 0f;
+
+        var facingDir = Vector3.ProjectOnPlane(camPos - feetPos, Vector3.up);
+        partnerRoot.position = feetPos;
+        if (facingDir.sqrMagnitude > 0.001f)
+            partnerRoot.rotation = Quaternion.LookRotation(facingDir.normalized);
+
+        CaptureBasePose();
+        _defaultStageApplied = true;
+    }
+
+    private void CaptureBasePose()
+    {
+        baseRootLocalPosition = partnerRoot.localPosition;
+        baseRootRotation = partnerRoot.localRotation;
+        _rhythmBasePosition = partnerRoot.localPosition;
+        _capturedBaseRootPose = true;
     }
 
     private Transform FindBoneByPath(string relativePath)
     {
         if (modelRoot == null || string.IsNullOrWhiteSpace(relativePath))
-        {
             return null;
-        }
-
         return modelRoot.Find(relativePath);
-    }
-
-    private void TryApplyDefaultBedSideStage()
-    {
-        if (_defaultStageApplied || !stageAtBedSideByDefault || avatarDriver == null || partnerRoot == null)
-        {
-            return;
-        }
-
-        if (avatarDriver.TryGetDefaultStandingAnchor(false, out var position, out var rotation))
-        {
-            partnerRoot.position = position;
-            partnerRoot.rotation = rotation;
-            baseRootLocalPosition = partnerRoot.localPosition;
-            baseRootRotation = partnerRoot.localRotation;
-            _rhythmBasePosition = partnerRoot.localPosition;
-            rotateRootTowardLookTarget = false;
-
-            if (defaultHeadTurnTowardUser && avatarDriver.TryGetDefaultStandingAnchor(true, out var userPosition, out _))
-            {
-                SetHeadLookTarget(userPosition + Vector3.up * defaultUserLookHeight);
-            }
-
-            _defaultStageApplied = true;
-        }
     }
 
     private Transform FindBone(string boneName)
     {
         if (modelRoot == null)
-        {
             return null;
-        }
 
-        var transforms = modelRoot.GetComponentsInChildren<Transform>(true);
-        foreach (var current in transforms)
+        foreach (var t in modelRoot.GetComponentsInChildren<Transform>(true))
         {
-            if (current.name == boneName)
-            {
-                return current;
-            }
+            if (t.name == boneName)
+                return t;
         }
-
         return null;
     }
 }

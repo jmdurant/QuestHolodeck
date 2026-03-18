@@ -6,6 +6,7 @@ public class ExperienceModeController : MonoBehaviour
     {
         Conversation,
         Activity,
+        Training,
     }
 
     [Header("Mode")]
@@ -62,14 +63,14 @@ public class ExperienceModeController : MonoBehaviour
         // Enforce visibility each frame in case startup order creates primitive bodies after mode was applied.
         if (avatarDriver != null)
         {
-            if (currentMode == ExperienceMode.Conversation)
+            if (currentMode == ExperienceMode.Conversation || currentMode == ExperienceMode.Training)
                 avatarDriver.SetPrimitiveVisibility(false, false);
             else if (currentMode == ExperienceMode.Activity)
                 avatarDriver.SetPrimitiveVisibility(true, true);
         }
 
         // Enforce local Meta avatar renderer visibility per mode to avoid first-person body parts leaking into conversation view.
-        if (currentMode == ExperienceMode.Conversation)
+        if (currentMode == ExperienceMode.Conversation || currentMode == ExperienceMode.Training)
             SetLocalMetaAvatarVisible(false);
         else if (currentMode == ExperienceMode.Activity)
             SetLocalMetaAvatarVisible(true);
@@ -90,10 +91,67 @@ public class ExperienceModeController : MonoBehaviour
             case ExperienceMode.Activity:
                 ApplyActivityMode();
                 break;
+
+            case ExperienceMode.Training:
+                ApplyTrainingMode();
+                break;
         }
     }
 
     private void ApplyConversationMode()
+    {
+        if (passthroughManager != null)
+        {
+            passthroughManager.SetPassthrough(false);
+        }
+
+        if (mainCamera != null)
+        {
+            mainCamera.clearFlags = CameraClearFlags.SolidColor;
+            mainCamera.backgroundColor = Color.black;
+        }
+
+        if (roomEnvironmentRoot != null)
+        {
+            roomEnvironmentRoot.SetActive(false);
+        }
+
+        if (hudCanvas != null)
+        {
+            hudCanvas.gameObject.SetActive(true);
+        }
+
+        if (observerCameraController != null)
+        {
+            observerCameraController.observerEnabled = false;
+            observerCameraController.pipEnabled = false;
+            observerCameraController.gameObject.SetActive(false);
+        }
+
+        if (avatarDriver != null)
+        {
+            avatarDriver.SetPrimitiveVisibility(false, false);
+        }
+
+        SetLocalMetaAvatarVisible(false);
+
+        ConfigureHudForCurrentMode();
+        ConfigureConversationHudOnConnectionPlane();
+        if (_sexKitHud != null)
+            _sexKitHud.SetConversationHrOnly(true);
+        ApplyConversationHudVisibility();
+
+            if (joyBodyController != null)
+            {
+                joyBodyController.stageAtBedSideByDefault = false;
+                joyBodyController.rotateRootTowardLookTarget = false;
+                joyBodyController.enableHeadLook = true;
+                joyBodyController.followUserHeadByDefault = true;
+                joyBodyController.ClearTargets(0.1f);
+            }
+    }
+
+    private void ApplyTrainingMode()
     {
         if (passthroughManager != null)
         {
@@ -253,7 +311,7 @@ public class ExperienceModeController : MonoBehaviour
         if (_sexKitHud == null)
             return;
 
-        if (currentMode == ExperienceMode.Conversation && conversationHudAnchorToJoy)
+        if ((currentMode == ExperienceMode.Conversation || currentMode == ExperienceMode.Training) && conversationHudAnchorToJoy)
         {
             var joyAnchor = ResolveJoyAnchor();
             if (joyAnchor != null)
@@ -277,7 +335,7 @@ public class ExperienceModeController : MonoBehaviour
             return;
         }
 
-        if (currentMode == ExperienceMode.Conversation)
+        if (currentMode == ExperienceMode.Conversation || currentMode == ExperienceMode.Training)
         {
             // Stable fallback for conversation: keep HUD directly in front of the user.
             _sexKitHud.anchorToTarget = false;
@@ -368,7 +426,7 @@ public class ExperienceModeController : MonoBehaviour
         if (_hudPanelRect == null)
             return;
 
-        if (currentMode == ExperienceMode.Conversation)
+        if (currentMode == ExperienceMode.Conversation || currentMode == ExperienceMode.Training)
             _hudPanelRect.gameObject.SetActive(_conversationHudVisible);
         else
             _hudPanelRect.gameObject.SetActive(true);

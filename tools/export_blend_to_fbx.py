@@ -72,6 +72,13 @@ def main():
 
     bpy.ops.object.select_all(action="DESELECT")
 
+    # Apply rotations on all export targets so the FBX has clean transforms
+    for obj in meshes + ([armature] if armature else []):
+        obj.select_set(True)
+        bpy.context.view_layer.objects.active = obj
+        bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+        obj.select_set(False)
+
     for obj in meshes:
         obj.select_set(True)
     if armature:
