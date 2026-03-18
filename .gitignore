@@ -22,6 +22,10 @@ UnityProject/Assets/Oculus/Avatar2_SampleAssets.meta
 UnityProject/Assets/Samples/
 UnityProject/Assets/Samples.meta
 
+# Auto-generated IDE/Unity project files
+*.csproj
+*.sln
+
 # Local reports and diagnostics
 unity-*.log
 unity-setup-tests.xml
