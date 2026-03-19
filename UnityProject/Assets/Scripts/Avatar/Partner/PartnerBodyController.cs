@@ -18,6 +18,7 @@ public class PartnerBodyController : MonoBehaviour, IPartnerBodyController
     [Header("Head Tracking")]
     public bool enableHeadLook = true;
     public bool followUserHeadByDefault = true;
+    public Vector3 userHeadLookOffset = Vector3.zero;
     public bool clampHeadTracking = true;
     public float maxHeadYawDegrees = 70f;
     public float maxHeadPitchUpDegrees = 28f;
@@ -261,7 +262,7 @@ public class PartnerBodyController : MonoBehaviour, IPartnerBodyController
 
         if (followUserHeadByDefault && trackingMerge != null && trackingMerge.HeadPosition != Vector3.zero)
         {
-            return trackingMerge.HeadPosition;
+            return trackingMerge.HeadPosition + userHeadLookOffset;
         }
 
         return null;

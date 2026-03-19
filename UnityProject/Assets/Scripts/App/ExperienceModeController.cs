@@ -24,9 +24,13 @@ public class ExperienceModeController : MonoBehaviour
     public ObserverCameraController observerCameraController;
     public Canvas hudCanvas;
     public GameObject roomEnvironmentRoot;
+    public GameObject worldKeyLight;
+    public GameObject worldFillLight;
+    public GameObject conversationPortraitLightRoot;
 
     [Header("Conversation Staging")]
     public bool keepConversationFramed = false;
+    public Vector3 conversationHeadLookOffset = new(0.0f, -0.04f, 0.0f);
     public bool conversationHudVisibleByDefault = false;
     public bool conversationHudAnchorToJoy = false;
     public Vector3 conversationHudJoyLocalOffset = new(0.0f, 1.42f, -0.35f);
@@ -128,6 +132,8 @@ public class ExperienceModeController : MonoBehaviour
             observerCameraController.gameObject.SetActive(false);
         }
 
+        SetConversationPortraitLighting(true);
+
         if (avatarDriver != null)
         {
             avatarDriver.SetPrimitiveVisibility(false, false);
@@ -147,6 +153,7 @@ public class ExperienceModeController : MonoBehaviour
                 joyBodyController.rotateRootTowardLookTarget = false;
                 joyBodyController.enableHeadLook = true;
                 joyBodyController.followUserHeadByDefault = true;
+                joyBodyController.userHeadLookOffset = conversationHeadLookOffset;
                 joyBodyController.ClearTargets(0.1f);
             }
     }
@@ -181,6 +188,8 @@ public class ExperienceModeController : MonoBehaviour
             observerCameraController.gameObject.SetActive(false);
         }
 
+        SetConversationPortraitLighting(true);
+
         if (avatarDriver != null)
         {
             avatarDriver.SetPrimitiveVisibility(false, false);
@@ -200,6 +209,7 @@ public class ExperienceModeController : MonoBehaviour
                 joyBodyController.rotateRootTowardLookTarget = false;
                 joyBodyController.enableHeadLook = true;
                 joyBodyController.followUserHeadByDefault = true;
+                joyBodyController.userHeadLookOffset = conversationHeadLookOffset;
                 joyBodyController.ClearTargets(0.1f);
             }
     }
@@ -240,11 +250,14 @@ public class ExperienceModeController : MonoBehaviour
             observerCameraController.gameObject.SetActive(true);
         }
 
+        SetConversationPortraitLighting(false);
+
         if (joyBodyController != null)
         {
             joyBodyController.enableHeadLook = true;
             joyBodyController.rotateRootTowardLookTarget = true;
             joyBodyController.followUserHeadByDefault = true;
+            joyBodyController.userHeadLookOffset = Vector3.zero;
         }
 
         SetLocalMetaAvatarVisible(true);
@@ -264,6 +277,9 @@ public class ExperienceModeController : MonoBehaviour
         roomMeshLoader ??= FindFirstObjectByType<RoomMeshLoader>();
         passthroughManager ??= FindFirstObjectByType<PassthroughManager>();
         observerCameraController ??= FindFirstObjectByType<ObserverCameraController>();
+        worldKeyLight ??= GameObject.Find("Directional Light");
+        worldFillLight ??= GameObject.Find("FillLight");
+        conversationPortraitLightRoot ??= GameObject.Find("ConversationPortraitLights");
 
         if (hudCanvas == null)
         {
@@ -287,6 +303,18 @@ public class ExperienceModeController : MonoBehaviour
         {
             _eyeTransform = cameraRig.centerEyeAnchor != null ? cameraRig.centerEyeAnchor : cameraRig.transform;
         }
+    }
+
+    private void SetConversationPortraitLighting(bool enabled)
+    {
+        if (conversationPortraitLightRoot != null)
+            conversationPortraitLightRoot.SetActive(enabled);
+
+        if (worldKeyLight != null)
+            worldKeyLight.SetActive(!enabled);
+
+        if (worldFillLight != null)
+            worldFillLight.SetActive(!enabled);
     }
 
     public void SetConversationHudAnchorToJoy(bool enabled)

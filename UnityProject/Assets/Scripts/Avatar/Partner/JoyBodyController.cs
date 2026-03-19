@@ -28,6 +28,12 @@ public class JoyBodyController : PartnerBodyController
     private bool _capturedBaseHeadPose;
     private bool _capturedSpineScale;
 
+    [Header("Debug")]
+    public bool drawFacingDebug = true;
+    public bool drawFacingDebugInEditMode = false;
+    public float debugForwardLength = 0.7f;
+    public float debugTargetSphereRadius = 0.06f;
+
     protected override void Awake()
     {
         AutoBind();
@@ -241,6 +247,60 @@ public class JoyBodyController : PartnerBodyController
             if (t.name == boneName)
                 return t;
         }
+        return null;
+    }
+
+    private void OnDrawGizmos()
+    {
+        if (!drawFacingDebug)
+            return;
+
+        if (!Application.isPlaying && !drawFacingDebugInEditMode)
+            return;
+
+        if (partnerRoot == null || modelRoot == null)
+            AutoBind();
+
+        var userViewPosition = ResolveUserViewPosition();
+        if (!userViewPosition.HasValue || partnerRoot == null)
+            return;
+
+        var rootOrigin = partnerRoot.position + Vector3.up * 1.35f;
+
+        Gizmos.color = new Color(0.2f, 0.7f, 1f, 0.95f);
+        Gizmos.DrawLine(rootOrigin, rootOrigin + partnerRoot.forward * debugForwardLength);
+
+        Gizmos.color = new Color(0.2f, 1f, 0.65f, 0.9f);
+        Gizmos.DrawLine(rootOrigin, userViewPosition.Value);
+        Gizmos.DrawWireSphere(userViewPosition.Value, debugTargetSphereRadius);
+
+        if (headBone != null)
+        {
+            var effectiveHeadTarget = GetEffectiveHeadLookTarget() ?? userViewPosition.Value;
+            Gizmos.color = new Color(1f, 0.8f, 0.2f, 0.9f);
+            Gizmos.DrawLine(headBone.position, effectiveHeadTarget);
+            Gizmos.DrawWireSphere(headBone.position, debugTargetSphereRadius * 0.75f);
+        }
+    }
+
+    private Vector3? ResolveUserViewPosition()
+    {
+        if (trackingMerge != null && trackingMerge.HeadPosition != Vector3.zero)
+            return trackingMerge.HeadPosition;
+
+        var mainCam = Camera.main;
+        if (mainCam != null)
+            return mainCam.transform.position;
+
+        var rig = FindFirstObjectByType<OVRCameraRig>();
+        if (rig != null)
+        {
+            if (rig.centerEyeAnchor != null)
+                return rig.centerEyeAnchor.position;
+
+            return rig.transform.position;
+        }
+
         return null;
     }
 }
