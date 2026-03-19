@@ -21,6 +21,7 @@ public class ExperienceModeController : MonoBehaviour
     public SexKitAvatarDriver avatarDriver;
     public RoomMeshLoader roomMeshLoader;
     public PassthroughManager passthroughManager;
+    public EnvironmentManager environmentManager;
     public ObserverCameraController observerCameraController;
     public Canvas hudCanvas;
     public GameObject roomEnvironmentRoot;
@@ -42,6 +43,10 @@ public class ExperienceModeController : MonoBehaviour
     [Header("Activity Staging")]
     public float activityPartnerReclineDegrees = 0.0f;
     public float activityPartnerMattressLift = 0.10f;
+
+    [Header("Activity Environment")]
+    public EnvironmentManager.EnvironmentMode activityEnvironmentMode = EnvironmentManager.EnvironmentMode.Passthrough;
+    public string activitySkyboxName = "beach";
     private Transform _eyeTransform;
     private SexKitHUD _sexKitHud;
     private RectTransform _hudPanelRect;
@@ -175,13 +180,17 @@ public class ExperienceModeController : MonoBehaviour
             roomEnvironmentRoot.SetActive(true);
         }
 
-        if (passthroughManager != null)
+        if (environmentManager != null)
+        {
+            environmentManager.SetEnvironment(activityEnvironmentMode, activitySkyboxName);
+        }
+        else if (passthroughManager != null)
         {
             var enablePassthrough = roomMeshLoader == null || roomMeshLoader.usePassthrough;
             passthroughManager.SetPassthrough(enablePassthrough);
         }
 
-        if (mainCamera != null)
+        if (environmentManager == null && mainCamera != null)
         {
             if (roomMeshLoader != null && roomMeshLoader.usePassthrough)
             {
@@ -241,6 +250,7 @@ public class ExperienceModeController : MonoBehaviour
         avatarDriver ??= FindFirstObjectByType<SexKitAvatarDriver>();
         roomMeshLoader ??= FindFirstObjectByType<RoomMeshLoader>();
         passthroughManager ??= FindFirstObjectByType<PassthroughManager>();
+        environmentManager ??= FindFirstObjectByType<EnvironmentManager>();
         observerCameraController ??= FindFirstObjectByType<ObserverCameraController>();
         worldKeyLight ??= GameObject.Find("Directional Light");
         worldFillLight ??= GameObject.Find("FillLight");

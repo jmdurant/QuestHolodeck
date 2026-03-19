@@ -730,6 +730,7 @@ MonoBehaviour:
   avatarDriver: {fileID: 1155435122}
   roomMeshLoader: {fileID: 182574048}
   passthroughManager: {fileID: 182574047}
+  environmentManager: {fileID: 182574050}
   observerCameraController: {fileID: 684577358}
   hudCanvas: {fileID: 1855532369}
   roomEnvironmentRoot: {fileID: 182574046}
@@ -737,6 +738,7 @@ MonoBehaviour:
   worldFillLight: {fileID: 481261920}
   conversationPortraitLightRoot: {fileID: 973730507}
   keepConversationFramed: 0
+  conversationHeadLookOffset: {x: 0, y: -0.04, z: 0}
   conversationHudVisibleByDefault: 0
   conversationHudAnchorToJoy: 0
   conversationHudJoyLocalOffset: {x: 0, y: 1.42, z: -0.35}
@@ -744,6 +746,10 @@ MonoBehaviour:
   conversationHudTowardUserDistance: 0.55
   conversationHudHorizontalOffset: 0
   activityHudFollowHead: 1
+  activityPartnerReclineDegrees: 0
+  activityPartnerMattressLift: 0.1
+  activityEnvironmentMode: 0
+  activitySkyboxName: beach
 --- !u!4 &82882365
 Transform:
   m_ObjectHideFlags: 0
@@ -1018,6 +1024,7 @@ GameObject:
   - component: {fileID: 182574049}
   - component: {fileID: 182574048}
   - component: {fileID: 182574047}
+  - component: {fileID: 182574050}
   m_Layer: 0
   m_Name: RoomEnvironment
   m_TagString: Untagged
@@ -1070,7 +1077,7 @@ MonoBehaviour:
   bedsideTableTopSize: {x: 0.6096, y: 0.6096}
   bedsideTableHeight: 0.6096
   bedsideTableGap: 0.08
-  createPillows: 1
+  createPillows: 0
   pillowSize: {x: 0.66, y: 0.16, z: 0.4}
   pillowInsetFromHead: 0.22
   pillowSideInset: 0.16
@@ -1093,6 +1100,27 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &182574050
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 182574046}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e587a18e3dadc7d46b47aec9d95392f4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnvironmentManager
+  mainCamera: {fileID: 615005136}
+  roomMeshLoader: {fileID: 182574048}
+  passthroughManager: {fileID: 182574047}
+  currentMode: 0
+  currentSkyboxName: 
+  presets: []
+  customSkyboxMaterial: {fileID: 0}
+  passthroughAmbient: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+  skyboxAmbientIntensity: 0.6
 --- !u!1 &242786320
 GameObject:
   m_ObjectHideFlags: 0
@@ -4241,6 +4269,7 @@ MonoBehaviour:
   rotationLerpSpeed: 6
   enableHeadLook: 1
   followUserHeadByDefault: 1
+  userHeadLookOffset: {x: 0, y: 0, z: 0}
   clampHeadTracking: 1
   maxHeadYawDegrees: 70
   maxHeadPitchUpDegrees: 28

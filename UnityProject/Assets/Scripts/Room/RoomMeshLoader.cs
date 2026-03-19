@@ -180,6 +180,11 @@ public class RoomMeshLoader : MonoBehaviour
         PlaceBed(fallbackBedWidth, fallbackBedLength, fallbackMattressHeight);
     }
 
+    public void RefreshFallbackVisuals()
+    {
+        PlaceBed(fallbackBedWidth, fallbackBedLength, fallbackMattressHeight);
+    }
+
     private void SetVisible(GameObject obj, bool visible)
     {
         if (obj == null) return;
@@ -196,8 +201,11 @@ public class RoomMeshLoader : MonoBehaviour
             return;
         }
 
-        _leftBedsideTable ??= CreateBedsideTable("BedsideTableLeft");
-        _rightBedsideTable ??= CreateBedsideTable("BedsideTableRight");
+        if (_leftBedsideTable == null)
+            _leftBedsideTable = CreateBedsideTable("BedsideTableLeft");
+
+        if (_rightBedsideTable == null)
+            _rightBedsideTable = CreateBedsideTable("BedsideTableRight");
 
         var bedCenter = new Vector3(bedOffset.x, mattressHeight, bedOffset.z);
         var halfWidth = width * 0.5f;
@@ -243,8 +251,11 @@ public class RoomMeshLoader : MonoBehaviour
             return;
         }
 
-        _leftPillow ??= CreatePillow("PillowLeft");
-        _rightPillow ??= CreatePillow("PillowRight");
+        if (_leftPillow == null)
+            _leftPillow = CreatePillow("PillowLeft");
+
+        if (_rightPillow == null)
+            _rightPillow = CreatePillow("PillowRight");
 
         var bedCenter = new Vector3(bedOffset.x, mattressHeight, bedOffset.z);
         var halfWidth = width * 0.5f;

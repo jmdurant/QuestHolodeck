@@ -2,14 +2,9 @@
 // SexKit Quest App
 //
 // Manages the visual environment surrounding the user.
-// Supports: passthrough (real room), skybox (360 photos), or custom meshes.
+// Supports: passthrough (real room), skybox (360 photos), or custom room meshes.
 // The bed anchor from SceneUnderstanding stays the same regardless of environment.
-// JOY positions relative to the bed — the world around her is swappable.
-//
-// Environments can be switched by:
-//   - User in Settings
-//   - Agent via set_environment ControlFrame
-//   - Persona system (Luna gets beach, Sarah gets hotel)
+// JOY positions relative to the bed; the world around her is swappable.
 
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -31,18 +26,18 @@ public class EnvironmentManager : MonoBehaviour
     public SkyboxPreset[] presets;
 
     [Header("Custom Skybox")]
-    public Material customSkyboxMaterial;   // user-imported 360 photo
+    public Material customSkyboxMaterial;
 
     [Header("Ambient Lighting")]
-    public Color passthroughAmbient = new Color(0.5f, 0.5f, 0.5f);
+    public Color passthroughAmbient = new(0.5f, 0.5f, 0.5f);
     public float skyboxAmbientIntensity = 0.6f;
 
     public enum EnvironmentMode
     {
-        Passthrough,    // Real room via Quest cameras (default)
-        Skybox,         // 360 photo environment
-        LiDARScan,      // iPhone room scan mesh
-        Void            // Dark void — just JOY, nothing else
+        Passthrough,
+        Skybox,
+        CustomMesh,
+        Void,
     }
 
     void Awake()
@@ -57,33 +52,26 @@ public class EnvironmentManager : MonoBehaviour
         roomMeshLoader ??= FindFirstObjectByType<RoomMeshLoader>();
         passthroughManager ??= FindFirstObjectByType<PassthroughManager>();
 
-        // Initialize presets if none assigned
         if (presets == null || presets.Length == 0)
-        {
             presets = DefaultPresets();
-        }
 
         ApplyEnvironment(currentMode);
     }
-
-    // MARK: - Switch Environment
 
     public void SetEnvironment(EnvironmentMode mode, string skyboxName = null)
     {
         currentMode = mode;
 
         if (mode == EnvironmentMode.Skybox && !string.IsNullOrWhiteSpace(skyboxName))
-        {
             currentSkyboxName = skyboxName;
-        }
 
         ApplyEnvironment(mode);
     }
 
-    /// Called from ControlFrame environment data
     public void SetEnvironmentFromAgent(string environmentName)
     {
-        if (string.IsNullOrWhiteSpace(environmentName)) return;
+        if (string.IsNullOrWhiteSpace(environmentName))
+            return;
 
         var lower = environmentName.ToLowerInvariant();
 
@@ -99,13 +87,13 @@ public class EnvironmentManager : MonoBehaviour
             return;
         }
 
-        if (lower == "lidar" || lower == "scan" || lower == "room_scan")
+        if (lower == "lidar" || lower == "scan" || lower == "room_scan" ||
+            lower == "custom_mesh" || lower == "custommesh" || lower == "mesh")
         {
-            SetEnvironment(EnvironmentMode.LiDARScan);
+            SetEnvironment(EnvironmentMode.CustomMesh);
             return;
         }
 
-        // Try to match a skybox preset
         foreach (var preset in presets)
         {
             if (preset.name.ToLowerInvariant().Contains(lower) ||
@@ -116,7 +104,6 @@ public class EnvironmentManager : MonoBehaviour
             }
         }
 
-        // No match — try as raw skybox name anyway
         SetEnvironment(EnvironmentMode.Skybox, environmentName);
     }
 
@@ -127,35 +114,23 @@ public class EnvironmentManager : MonoBehaviour
             case EnvironmentMode.Passthrough:
                 EnablePassthrough(true);
                 SetSkyboxMaterial(null);
-                SetRoomMeshVisible(false);
+                ApplyFallbackPresentation(true);
                 SetAmbient(passthroughAmbient, 1f);
-                Debug.Log("[Environment] Passthrough — real room");
+                Debug.Log("[Environment] Passthrough - real room");
                 break;
 
             case EnvironmentMode.Skybox:
                 EnablePassthrough(false);
-                var preset = FindPreset(currentSkyboxName);
-                if (preset != null && preset.material != null)
-                {
-                    SetSkyboxMaterial(preset.material);
-                    SetAmbient(preset.ambientColor, preset.ambientIntensity);
-                    Debug.Log($"[Environment] Skybox — {preset.name}");
-                }
-                else if (customSkyboxMaterial != null)
-                {
-                    SetSkyboxMaterial(customSkyboxMaterial);
-                    SetAmbient(Color.gray, skyboxAmbientIntensity);
-                    Debug.Log("[Environment] Custom skybox");
-                }
-                SetRoomMeshVisible(false);
+                ApplySkyboxEnvironment();
+                ApplyFallbackPresentation(false);
                 break;
 
-            case EnvironmentMode.LiDARScan:
+            case EnvironmentMode.CustomMesh:
                 EnablePassthrough(false);
                 SetSkyboxMaterial(null);
-                SetRoomMeshVisible(true);
+                ApplyFallbackPresentation(false);
                 SetAmbient(Color.gray, 0.4f);
-                Debug.Log("[Environment] LiDAR room scan");
+                Debug.Log("[Environment] Custom room mesh");
                 break;
 
             case EnvironmentMode.Void:
@@ -167,21 +142,47 @@ public class EnvironmentManager : MonoBehaviour
                     mainCamera.clearFlags = CameraClearFlags.SolidColor;
                     mainCamera.backgroundColor = Color.black;
                 }
-                SetRoomMeshVisible(false);
+
+                ApplyFallbackPresentation(false);
                 SetAmbient(new Color(0.1f, 0.1f, 0.12f), 0.3f);
-                Debug.Log("[Environment] Void — darkness");
+                Debug.Log("[Environment] Void - darkness");
                 break;
         }
     }
 
-    // MARK: - Helpers
+    private void ApplySkyboxEnvironment()
+    {
+        var preset = FindPreset(currentSkyboxName);
+        if (preset != null && preset.material != null)
+        {
+            SetSkyboxMaterial(preset.material);
+            SetAmbient(preset.ambientColor, preset.ambientIntensity);
+            Debug.Log($"[Environment] Skybox - {preset.name}");
+            return;
+        }
+
+        if (customSkyboxMaterial != null)
+        {
+            SetSkyboxMaterial(customSkyboxMaterial);
+            SetAmbient(Color.gray, skyboxAmbientIntensity);
+            Debug.Log("[Environment] Custom skybox");
+            return;
+        }
+
+        RenderSettings.skybox = null;
+        if (mainCamera != null)
+        {
+            mainCamera.clearFlags = CameraClearFlags.SolidColor;
+            mainCamera.backgroundColor = Color.black;
+        }
+
+        SetAmbient(Color.gray, skyboxAmbientIntensity);
+    }
 
     private void EnablePassthrough(bool enabled)
     {
         if (passthroughManager != null)
-        {
             passthroughManager.SetPassthrough(enabled);
-        }
 
         if (mainCamera != null && enabled)
         {
@@ -192,21 +193,21 @@ public class EnvironmentManager : MonoBehaviour
 
     private void SetSkyboxMaterial(Material mat)
     {
-        if (mat != null)
-        {
-            RenderSettings.skybox = mat;
-            if (mainCamera != null)
-            {
-                mainCamera.clearFlags = CameraClearFlags.Skybox;
-            }
-        }
+        if (mat == null)
+            return;
+
+        RenderSettings.skybox = mat;
+        if (mainCamera != null)
+            mainCamera.clearFlags = CameraClearFlags.Skybox;
     }
 
-    private void SetRoomMeshVisible(bool visible)
+    private void ApplyFallbackPresentation(bool passthroughMode)
     {
-        if (roomMeshLoader == null) return;
-        // Room mesh visibility is handled by RoomMeshLoader
-        roomMeshLoader.usePassthrough = !visible;
+        if (roomMeshLoader == null)
+            return;
+
+        roomMeshLoader.usePassthrough = passthroughMode;
+        roomMeshLoader.RefreshFallbackVisuals();
     }
 
     private void SetAmbient(Color color, float intensity)
@@ -217,18 +218,19 @@ public class EnvironmentManager : MonoBehaviour
 
     private SkyboxPreset FindPreset(string name)
     {
-        if (string.IsNullOrWhiteSpace(name) || presets == null) return null;
+        if (string.IsNullOrWhiteSpace(name) || presets == null)
+            return null;
+
         var lower = name.ToLowerInvariant();
         foreach (var preset in presets)
         {
-            if (preset.name.ToLowerInvariant() == lower) return preset;
+            if (preset.name.ToLowerInvariant() == lower)
+                return preset;
         }
+
         return null;
     }
 
-    // MARK: - Default Presets
-
-    /// Default preset definitions — materials assigned in inspector or loaded from Resources
     private SkyboxPreset[] DefaultPresets()
     {
         return new[]
@@ -250,15 +252,6 @@ public class EnvironmentManager : MonoBehaviour
                 ambientColor = new Color(0.15f, 0.25f, 0.2f),
                 ambientIntensity = 0.4f,
                 material = LoadSkyboxMaterial("Skybox_Aurora")
-            },
-            new SkyboxPreset
-            {
-                name = "tuscany",
-                displayName = "Tuscan Hillside",
-                description = "Italian village, rolling hills, golden hour",
-                ambientColor = new Color(0.5f, 0.4f, 0.25f),
-                ambientIntensity = 0.6f,
-                material = LoadSkyboxMaterial("Skybox_Tuscany")
             },
             new SkyboxPreset
             {
@@ -287,34 +280,22 @@ public class EnvironmentManager : MonoBehaviour
                 ambientIntensity = 0.6f,
                 material = LoadSkyboxMaterial("Skybox_Meadow")
             },
-            new SkyboxPreset
-            {
-                name = "city",
-                displayName = "City Evening",
-                description = "Rainy European cobblestone street, warm lamp light",
-                ambientColor = new Color(0.3f, 0.25f, 0.2f),
-                ambientIntensity = 0.4f,
-                material = LoadSkyboxMaterial("Skybox_CityEvening")
-            },
         };
     }
 
     private Material LoadSkyboxMaterial(string resourceName)
     {
-        // Load from Resources folder — user drops skybox materials there
         return Resources.Load<Material>($"Environments/{resourceName}");
     }
 }
 
-// MARK: - Data Types
-
 [System.Serializable]
 public class SkyboxPreset
 {
-    public string name;              // internal name for agent commands
-    public string displayName;       // shown to user
+    public string name;
+    public string displayName;
     public string description;
-    public Material material;        // 6-sided or panoramic skybox material
-    public Color ambientColor;       // ambient light color for this environment
-    public float ambientIntensity;   // ambient light strength
+    public Material material;
+    public Color ambientColor;
+    public float ambientIntensity;
 }
