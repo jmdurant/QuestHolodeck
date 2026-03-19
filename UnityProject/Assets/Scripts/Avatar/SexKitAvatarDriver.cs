@@ -278,6 +278,36 @@ public class SexKitAvatarDriver : MonoBehaviour
         return false;
     }
 
+    /// Bed basis and bedside directions are defined from the user's perspective while lying
+    /// face-up on the bed with their head pointing toward bedTransform.forward.
+    /// For this scene's bed orientation:
+    /// - lying "left"  = +bedTransform.right
+    /// - lying "right" = -bedTransform.right
+    public bool TryGetBedBasis(out Vector3 right, out Vector3 forward)
+    {
+        if (bedTransform != null)
+        {
+            right = bedTransform.right.sqrMagnitude > 0.0001f ? bedTransform.right.normalized : Vector3.right;
+            forward = bedTransform.forward.sqrMagnitude > 0.0001f ? bedTransform.forward.normalized : Vector3.forward;
+            return true;
+        }
+
+        right = Vector3.right;
+        forward = Vector3.forward;
+        return false;
+    }
+
+    public bool TryGetLyingSideDirection(string side, out Vector3 direction)
+    {
+        direction = Vector3.zero;
+        if (!TryGetBedBasis(out var right, out _))
+            return false;
+
+        var normalizedSide = NormalizeSleepSide(side);
+        direction = normalizedSide == "right" ? -right : right;
+        return true;
+    }
+
     private void EnsureDefaultAnchors()
     {
         if (userDefaultAnchor == null)
@@ -303,15 +333,13 @@ public class SexKitAvatarDriver : MonoBehaviour
         }
 
         var bedCenter = bedTransform.position;
-        var right = bedTransform.right.sqrMagnitude > 0.0001f ? bedTransform.right.normalized : Vector3.right;
-        var forward = bedTransform.forward.sqrMagnitude > 0.0001f ? bedTransform.forward.normalized : Vector3.forward;
+        TryGetBedBasis(out var right, out var forward);
         var bedWidth = bedTransform.localScale.x > 0.01f ? bedTransform.localScale.x : (frame != null && frame.bedWidth > 0f ? frame.bedWidth : 1.5f);
         var bedLength = bedTransform.localScale.z > 0.01f ? bedTransform.localScale.z : (frame != null && frame.bedLength > 0f ? frame.bedLength : 2f);
         var sideOffset = bedWidth * 0.5f + bedSideClearance;
         var floorY = standingFloorY;
 
-        var userOnLeft = !string.Equals(_resolvedUserSleepSide, "right", System.StringComparison.OrdinalIgnoreCase);
-        var userDirection = userOnLeft ? -right : right;
+        TryGetLyingSideDirection(_resolvedUserSleepSide, out var userDirection);
         var partnerDirection = -userDirection;
 
         var userPosition = bedCenter + userDirection * sideOffset;
@@ -334,6 +362,11 @@ public class SexKitAvatarDriver : MonoBehaviour
             side = fallbackUserSleepSide;
         }
 
+        return NormalizeSleepSide(side);
+    }
+
+    private static string NormalizeSleepSide(string side)
+    {
         side = side.Trim().ToLowerInvariant();
         return side switch
         {
@@ -368,9 +401,10 @@ public class SexKitAvatarDriver : MonoBehaviour
             : Vector3.right;
 
         // The imported model stands upright with local up running feet->head.
-        // When reclining on the bed, the head should point toward the bed headboard.
-        var lying = Quaternion.LookRotation(Vector3.up, forward);
-        var faceUp = Quaternion.AngleAxis(180f, forward) * lying;
+        // When lying face-up on the bed:
+        // - local forward (+Z, face/chest direction) should point upward
+        // - local up (+Y, feet->head axis) should point toward the headboard
+        var faceUp = Quaternion.LookRotation(Vector3.up, forward);
         return Quaternion.AngleAxis(-reclineDegrees, right) * faceUp;
     }
 

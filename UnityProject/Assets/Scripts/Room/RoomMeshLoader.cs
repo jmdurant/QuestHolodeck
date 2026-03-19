@@ -36,7 +36,7 @@ public class RoomMeshLoader : MonoBehaviour
     public float bedsideTableGap = 0.08f;
 
     [Header("Pillows")]
-    public bool createPillows = true;
+    public bool createPillows = false;
     public Vector3 pillowSize = new Vector3(0.66f, 0.16f, 0.4f);
     public float pillowInsetFromHead = 0.22f;
     public float pillowSideInset = 0.16f;
@@ -191,6 +191,8 @@ public class RoomMeshLoader : MonoBehaviour
     {
         if (!createBedsideTables)
         {
+            SetVisible(_leftBedsideTable, false);
+            SetVisible(_rightBedsideTable, false);
             return;
         }
 
@@ -201,7 +203,8 @@ public class RoomMeshLoader : MonoBehaviour
         var halfWidth = width * 0.5f;
         var halfLength = length * 0.5f;
         var halfTableWidth = bedsideTableTopSize.x * 0.5f;
-        var tableCenterY = mattressHeight - 0.025f + bedsideTableHeight * 0.5f;
+        var mattressTopY = mattressHeight + 0.025f;
+        var tableCenterY = mattressTopY - bedsideTableHeight * 0.5f;
         var headZ = bedCenter.z + halfLength - halfTableWidth;
 
         var leftX = bedCenter.x - (halfWidth + bedsideTableGap + halfTableWidth);
@@ -235,6 +238,8 @@ public class RoomMeshLoader : MonoBehaviour
     {
         if (!createPillows)
         {
+            SetVisible(_leftPillow, false);
+            SetVisible(_rightPillow, false);
             return;
         }
 

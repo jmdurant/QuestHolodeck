@@ -109,6 +109,23 @@ public class JoyBodyController : PartnerBodyController
         rhythmAmplitude = Mathf.Clamp01(amplitude);
     }
 
+    public void RestageForCurrentMode()
+    {
+        AutoBind();
+        if (partnerRoot == null)
+            return;
+
+        _defaultStageApplied = false;
+
+        if (stageAtBedSideByDefault)
+        {
+            TryApplyBedSideStage();
+            return;
+        }
+
+        TryApplyConversationStage();
+    }
+
     // --- Private ---
 
     private void AutoBind()

@@ -38,6 +38,10 @@ public class ExperienceModeController : MonoBehaviour
     public float conversationHudTowardUserDistance = 0.55f;
     public float conversationHudHorizontalOffset = 0.0f;
     public bool activityHudFollowHead = true;
+
+    [Header("Activity Staging")]
+    public float activityPartnerReclineDegrees = 0.0f;
+    public float activityPartnerMattressLift = 0.10f;
     private Transform _eyeTransform;
     private SexKitHUD _sexKitHud;
     private RectTransform _hudPanelRect;
@@ -150,6 +154,7 @@ public class ExperienceModeController : MonoBehaviour
             if (joyBodyController != null)
             {
                 joyBodyController.stageAtBedSideByDefault = false;
+                joyBodyController.RestageForCurrentMode();
                 joyBodyController.rotateRootTowardLookTarget = false;
                 joyBodyController.enableHeadLook = true;
                 joyBodyController.followUserHeadByDefault = true;
@@ -203,11 +208,22 @@ public class ExperienceModeController : MonoBehaviour
 
         if (joyBodyController != null)
         {
+            if (avatarDriver != null)
+            {
+                avatarDriver.partnerReclineDegrees = activityPartnerReclineDegrees;
+                avatarDriver.partnerMattressLift = activityPartnerMattressLift;
+            }
+
+            joyBodyController.stageAtBedSideByDefault = true;
+            joyBodyController.RestageForCurrentMode();
             joyBodyController.enableHeadLook = true;
             joyBodyController.rotateRootTowardLookTarget = true;
             joyBodyController.followUserHeadByDefault = true;
             joyBodyController.userHeadLookOffset = Vector3.zero;
+            joyBodyController.ClearTargets(0.1f);
         }
+
+        StageUserRigToActivityAnchor();
 
         SetLocalMetaAvatarVisible(true);
         RestoreHudCanvasState();
@@ -264,6 +280,48 @@ public class ExperienceModeController : MonoBehaviour
 
         if (worldFillLight != null)
             worldFillLight.SetActive(!enabled);
+    }
+
+    private void StageUserRigToActivityAnchor()
+    {
+        if (cameraRig == null || avatarDriver == null)
+            return;
+
+        if (!avatarDriver.TryGetDefaultStandingAnchor(true, out var userAnchorPosition, out var userAnchorRotation))
+            return;
+
+        var rigTransform = cameraRig.transform;
+        var eyeTransform = cameraRig.centerEyeAnchor != null ? cameraRig.centerEyeAnchor : rigTransform;
+
+        float targetEyeHeight = 1.55f;
+        if (cameraRig.centerEyeAnchor != null && cameraRig.centerEyeAnchor.localPosition.y > 0.5f)
+            targetEyeHeight = cameraRig.centerEyeAnchor.localPosition.y;
+
+        var targetEyePosition = userAnchorPosition + Vector3.up * targetEyeHeight;
+        var desiredLookDirection = ResolveActivityLookDirection(targetEyePosition, userAnchorRotation);
+        var desiredEyeRotation = Quaternion.LookRotation(desiredLookDirection.normalized, Vector3.up);
+        var eyeLocalRotation = Quaternion.Inverse(rigTransform.rotation) * eyeTransform.rotation;
+        rigTransform.rotation = desiredEyeRotation * Quaternion.Inverse(eyeLocalRotation);
+
+        var translatedEyePosition = eyeTransform.position;
+        rigTransform.position += targetEyePosition - translatedEyePosition;
+    }
+
+    private Vector3 ResolveActivityLookDirection(Vector3 targetEyePosition, Quaternion userAnchorRotation)
+    {
+        var fallbackForward = userAnchorRotation * Vector3.forward;
+        var flatForward = Vector3.ProjectOnPlane(fallbackForward, Vector3.up);
+        if (flatForward.sqrMagnitude > 0.001f)
+            return flatForward.normalized;
+
+        if (avatarDriver != null && avatarDriver.TryGetDefaultStandingAnchor(false, out var partnerAnchorPosition, out _))
+        {
+            var towardPartner = Vector3.ProjectOnPlane((partnerAnchorPosition + Vector3.up * 0.65f) - targetEyePosition, Vector3.up);
+            if (towardPartner.sqrMagnitude > 0.001f)
+                return towardPartner.normalized;
+        }
+
+        return Vector3.forward;
     }
 
     public void SetConversationHudAnchorToJoy(bool enabled)

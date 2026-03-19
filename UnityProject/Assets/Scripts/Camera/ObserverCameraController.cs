@@ -322,12 +322,12 @@ public class ObserverCameraController : MonoBehaviour
                 return true;
 
             case ObserverCameraPreset.BedsideLeft:
-                position = anchor - right * bedsideDistance + Vector3.up * bedsideHeight;
+                position = anchor + ResolveLyingSideDirection("left", right) * bedsideDistance + Vector3.up * bedsideHeight;
                 rotation = Quaternion.LookRotation((lookTarget - position).normalized, Vector3.up);
                 return true;
 
             case ObserverCameraPreset.BedsideRight:
-                position = anchor + right * bedsideDistance + Vector3.up * bedsideHeight;
+                position = anchor + ResolveLyingSideDirection("right", right) * bedsideDistance + Vector3.up * bedsideHeight;
                 rotation = Quaternion.LookRotation((lookTarget - position).normalized, Vector3.up);
                 return true;
 
@@ -421,10 +421,8 @@ public class ObserverCameraController : MonoBehaviour
 
     private bool GetBedBasis(Vector3 anchor, out Vector3 right, out Vector3 forward)
     {
-        if (avatarDriver != null && avatarDriver.bedTransform != null)
+        if (avatarDriver != null && avatarDriver.TryGetBedBasis(out right, out forward))
         {
-            right = avatarDriver.bedTransform.right.normalized;
-            forward = avatarDriver.bedTransform.forward.normalized;
             return true;
         }
 
@@ -442,6 +440,14 @@ public class ObserverCameraController : MonoBehaviour
         forward = Vector3.forward;
         right = Vector3.right;
         return false;
+    }
+
+    private Vector3 ResolveLyingSideDirection(string side, Vector3 fallbackRight)
+    {
+        if (avatarDriver != null && avatarDriver.TryGetLyingSideDirection(side, out var direction))
+            return direction;
+
+        return side == "right" ? fallbackRight : -fallbackRight;
     }
 
     void OnDestroy()
