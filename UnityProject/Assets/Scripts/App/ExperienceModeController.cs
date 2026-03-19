@@ -160,58 +160,7 @@ public class ExperienceModeController : MonoBehaviour
 
     private void ApplyTrainingMode()
     {
-        if (passthroughManager != null)
-        {
-            passthroughManager.SetPassthrough(false);
-        }
-
-        if (mainCamera != null)
-        {
-            mainCamera.clearFlags = CameraClearFlags.SolidColor;
-            mainCamera.backgroundColor = Color.black;
-        }
-
-        if (roomEnvironmentRoot != null)
-        {
-            roomEnvironmentRoot.SetActive(false);
-        }
-
-        if (hudCanvas != null)
-        {
-            hudCanvas.gameObject.SetActive(true);
-        }
-
-        if (observerCameraController != null)
-        {
-            observerCameraController.observerEnabled = false;
-            observerCameraController.pipEnabled = false;
-            observerCameraController.gameObject.SetActive(false);
-        }
-
-        SetConversationPortraitLighting(true);
-
-        if (avatarDriver != null)
-        {
-            avatarDriver.SetPrimitiveVisibility(false, false);
-        }
-
-        SetLocalMetaAvatarVisible(false);
-
-        ConfigureHudForCurrentMode();
-        ConfigureConversationHudOnConnectionPlane();
-        if (_sexKitHud != null)
-            _sexKitHud.SetConversationHrOnly(true);
-        ApplyConversationHudVisibility();
-
-            if (joyBodyController != null)
-            {
-                joyBodyController.stageAtBedSideByDefault = false;
-                joyBodyController.rotateRootTowardLookTarget = false;
-                joyBodyController.enableHeadLook = true;
-                joyBodyController.followUserHeadByDefault = true;
-                joyBodyController.userHeadLookOffset = conversationHeadLookOffset;
-                joyBodyController.ClearTargets(0.1f);
-            }
+        ApplyConversationMode();
     }
 
     private void ApplyActivityMode()
